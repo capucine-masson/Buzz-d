@@ -24,17 +24,50 @@ load_dotenv()
 NICKNAME_MAX_LENGTH = 20
 ROUND_TIMEOUT_SECONDS = 32  # un peu plus long qu'un extrait Deezer (30s)
 NEXT_ROUND_DELAY_SECONDS = 4  # temps de lire le résultat avant d'enchaîner
+HOST_LEAVE_GRACE_SECONDS = 5  # laisse le temps à un simple reload de page de se reconnecter
 
 # Une seule tâche "en attente" à la fois par room : soit le minuteur qui force la
 # révélation si personne ne buzze, soit le délai avant d'enchaîner sur le morceau
 # suivant. Un nouveau départ de manche (manuel ou auto) annule toujours la précédente.
 _pending_tasks: dict[str, asyncio.Task] = {}
 
+# Tâche de "grâce" après la déconnexion de l'hôte : si aucune reconnexion de sa
+# part n'arrive dans les temps, la room est considérée comme abandonnée.
+_host_leave_tasks: dict[str, asyncio.Task] = {}
+
 
 def _cancel_pending_task(room_code: str) -> None:
     task = _pending_tasks.pop(room_code, None)
     if task and not task.done():
         task.cancel()
+
+
+def _cancel_host_leave_task(room_code: str) -> None:
+    task = _host_leave_tasks.pop(room_code, None)
+    if task and not task.done():
+        task.cancel()
+
+
+async def _handle_host_disconnect(room_code: str, host_nickname: str) -> None:
+    try:
+        await asyncio.sleep(HOST_LEAVE_GRACE_SECONDS)
+    except asyncio.CancelledError:
+        return
+
+    if manager.is_player_connected(room_code, host_nickname):
+        return  # reconnecté entre-temps (ex: simple rechargement de page)
+
+    conn = get_connection()
+    try:
+        room = game.get_room(conn, room_code)
+        if room is not None and room["status"] != "finished":
+            game.set_room_status(conn, room_code, "finished")
+    finally:
+        conn.close()
+
+    _cancel_pending_task(room_code)
+    rounds.clear(room_code)
+    await manager.broadcast(room_code, {"type": "host_left"})
 
 
 @asynccontextmanager
@@ -375,9 +408,10 @@ async def set_playlist(
     finally:
         conn.close()
 
-    await manager.broadcast(room_code, {"type": "playlist_loaded", "track_count": len(tracks)})
-
     # L'import lance directement la partie (plus d'étape intermédiaire "Playlist prête").
+    # Pas de broadcast "playlist_loaded" ici : round_start (dans _advance_round) suffit
+    # à faire basculer l'UI de tout le monde, et un message qui forcerait une navigation
+    # ici entrerait en course avec la redirection HTTP de l'hôte vers /demo.
     _cancel_pending_task(room_code)
     await _advance_round(room_code)
     return _redirect(f"/demo/{room_code}", count=players_count, player=player)
@@ -397,7 +431,6 @@ async def start_round(code: str, player: str = Form(...)):
                 f"/room/{room_code}", player=player, error="Seul l'hôte peut lancer la manche"
             )
 
-        was_lobby = room["status"] == "lobby"
         players_count = len(game.list_players(conn, room_code))
     finally:
         conn.close()
@@ -407,11 +440,31 @@ async def start_round(code: str, player: str = Form(...)):
     _cancel_pending_task(room_code)
     await _advance_round(room_code)
 
-    # Le tout premier lancement (encore en lobby) envoie l'hôte vers la vue démo
-    # multi-téléphones plutôt que de le laisser sur sa propre room.
-    if was_lobby:
-        return _redirect(f"/demo/{room_code}", count=players_count, player=player)
-    return _redirect(f"/room/{room_code}", player=player)
+    # L'hôte est toujours renvoyé vers la vue démo multi-téléphones après un
+    # lancement, plutôt que de rester sur sa propre room.
+    return _redirect(f"/demo/{room_code}", count=players_count, player=player)
+
+
+@app.post("/rooms/{code}/playback")
+async def set_playback(code: str, player: str = Form(...), action: str = Form(...)):
+    room_code = code.strip().upper()
+    if action not in ("play", "pause"):
+        return JSONResponse({"error": "invalid_action"}, status_code=400)
+
+    conn = get_connection()
+    try:
+        room = game.get_room(conn, room_code)
+        if room is None:
+            conn.close()
+            return JSONResponse({"error": "room_not_found"}, status_code=404)
+        if player != room["host_nickname"]:
+            conn.close()
+            return JSONResponse({"error": "not_host"}, status_code=403)
+    finally:
+        conn.close()
+
+    await manager.broadcast(room_code, {"type": "playback", "action": action})
+    return JSONResponse({"ok": True})
 
 
 @app.post("/rooms/{code}/buzz")
@@ -495,12 +548,73 @@ async def submit_answer(
     )
 
 
+@app.post("/rooms/{code}/replay")
+async def replay_room(code: str, player: str = Form(...)):
+    room_code = code.strip().upper()
+    conn = get_connection()
+    try:
+        room = game.get_room(conn, room_code)
+        if room is None:
+            return _redirect("/", error="Room introuvable")
+
+        if player != room["host_nickname"]:
+            return _redirect(
+                f"/room/{room_code}", player=player, error="Seul l'hôte peut relancer la partie"
+            )
+
+        game.reset_for_replay(conn, room_code)
+        players = game.list_players(conn, room_code)
+        players_count = len(players)
+    finally:
+        conn.close()
+
+    _cancel_pending_task(room_code)
+    await manager.broadcast(
+        room_code, {"type": "players_update", "players": [dict(p) for p in players]}
+    )
+    await _advance_round(room_code)
+    return _redirect(f"/demo/{room_code}", count=players_count, player=player)
+
+
+@app.post("/rooms/{code}/propose-replay")
+async def propose_replay(code: str, player: str = Form(...)):
+    room_code = code.strip().upper()
+
+    conn = get_connection()
+    try:
+        if not game.player_exists(conn, room_code, player):
+            return JSONResponse({"error": "unknown_player"}, status_code=403)
+    finally:
+        conn.close()
+
+    await manager.broadcast(room_code, {"type": "replay_proposed", "by": player})
+    return JSONResponse({"ok": True})
+
+
 @app.websocket("/ws/{room_code}")
-async def room_websocket(websocket: WebSocket, room_code: str):
+async def room_websocket(websocket: WebSocket, room_code: str, player: str = ""):
     code = room_code.strip().upper()
-    await manager.connect(code, websocket)
+    clean_player = player.strip()
+    await manager.connect(code, clean_player, websocket)
+
+    conn = get_connection()
+    try:
+        room = game.get_room(conn, code)
+    finally:
+        conn.close()
+    is_host = bool(room) and clean_player == room["host_nickname"]
+
+    if is_host:
+        # Une reconnexion de l'hôte (ex: reload de page) annule un éventuel
+        # compte à rebours de départ programmé lors d'une déconnexion précédente.
+        _cancel_host_leave_task(code)
+
     try:
         while True:
             await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(code, websocket)
+        if is_host:
+            _host_leave_tasks[code] = asyncio.create_task(
+                _handle_host_disconnect(code, clean_player)
+            )

@@ -55,6 +55,7 @@
     const playerStepperForm = document.getElementById("player-stepper");
     const playerStepperInput = document.getElementById("player-stepper-input");
     const demoCountInput = document.getElementById("demo-count-input");
+    const proposeReplayButton = document.getElementById("propose-replay-button");
 
     if (playerStepperForm) {
         playerStepperForm.addEventListener("submit", async (event) => {
@@ -137,12 +138,33 @@
             if (!gameAudio) {
                 return;
             }
-            if (gameAudio.paused) {
+            const willPlay = gameAudio.paused;
+            if (willPlay) {
                 gameAudio.play().catch(() => {});
             } else {
                 gameAudio.pause();
             }
+            // Seul l'hôte fait autorité sur la lecture : son bouton synchronise
+            // la pause/lecture de tous les autres téléphones connectés.
+            if (isHost) {
+                fetch(`/rooms/${roomCode}/playback`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                    body: new URLSearchParams({ player, action: willPlay ? "play" : "pause" }),
+                }).catch(() => {});
+            }
         });
+    }
+
+    function applyPlayback(action) {
+        if (isHost || !gameAudio) {
+            return;
+        }
+        if (action === "pause") {
+            gameAudio.pause();
+        } else if (action === "play") {
+            gameAudio.play().catch(() => {});
+        }
     }
 
     function startRound(data) {
@@ -158,7 +180,7 @@
         if (gameAudio) {
             gameAudio.src = data.preview_url;
         }
-        if (playPauseButton) {
+        if (playPauseButton && isHost) {
             playPauseButton.disabled = false;
         }
         tryAutoplay();
@@ -352,9 +374,38 @@
         });
     }
 
+    if (proposeReplayButton) {
+        proposeReplayButton.addEventListener("click", async () => {
+            proposeReplayButton.disabled = true;
+            try {
+                await fetch(`/rooms/${roomCode}/propose-replay`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                    body: new URLSearchParams({ player }),
+                });
+                proposeReplayButton.textContent = "Proposition envoyée !";
+            } catch (err) {
+                proposeReplayButton.disabled = false;
+            }
+        });
+    }
+
+    function showTransientNotice(text) {
+        const note = document.createElement("p");
+        note.className = "note note--flash";
+        note.textContent = text;
+        main.insertBefore(note, main.firstChild);
+        setTimeout(() => {
+            note.classList.add("note--fade-out");
+            note.addEventListener("transitionend", () => note.remove(), { once: true });
+        }, 5000);
+    }
+
     function connect() {
         const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-        const ws = new WebSocket(`${protocol}://${window.location.host}/ws/${roomCode}`);
+        const ws = new WebSocket(
+            `${protocol}://${window.location.host}/ws/${roomCode}?player=${encodeURIComponent(player)}`
+        );
 
         ws.addEventListener("message", (event) => {
             const message = JSON.parse(event.data);
@@ -362,16 +413,6 @@
                 case "players_update":
                     renderPlayers(message.players);
                     break;
-                case "playlist_loaded": {
-                    // Navigue vers une URL propre plutôt qu'un reload() brut : celui-ci
-                    // réutiliserait l'URL courante, qui peut encore porter un
-                    // ?error=... périmé d'un essai précédent.
-                    const url = new URL(window.location.href);
-                    url.searchParams.delete("error");
-                    url.searchParams.set("loaded", message.track_count);
-                    window.location.href = url.pathname + url.search;
-                    break;
-                }
                 case "round_start":
                     startRound(message);
                     break;
@@ -383,6 +424,17 @@
                     break;
                 case "game_over":
                     gameOver(message);
+                    break;
+                case "playback":
+                    applyPlayback(message.action);
+                    break;
+                case "replay_proposed":
+                    if (message.by !== player) {
+                        showTransientNotice(`${message.by} propose de rejouer !`);
+                    }
+                    break;
+                case "host_left":
+                    window.location.href = "/?error=" + encodeURIComponent("L'hôte a quitté la partie");
                     break;
                 default:
                     break;

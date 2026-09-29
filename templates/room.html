@@ -42,10 +42,10 @@
         <p class="note" id="game-progress">Morceau {{ played }}/{{ total }}</p>
 
         <audio id="game-audio" preload="auto" {% if round_info %}src="{{ round_info.preview_url }}"{% endif %}></audio>
-        {% if is_host %}
-        <button id="play-pause-button" class="play-pause-button" type="button"
-                aria-label="Lecture / pause" {% if not round_info %}disabled{% endif %}>▶</button>
-        {% endif %}
+        <button id="play-pause-button"
+                class="play-pause-button{% if not is_host %} play-pause-button--hidden{% endif %}"
+                type="button" aria-label="Lecture / pause"
+                {% if not round_info or not is_host %}disabled{% endif %}>▶</button>
 
         <button id="buzz-button" class="buzz-button" type="button"
                 {% if not round_info or round_info.locked_by or round_info.revealed %}disabled{% endif %}>
@@ -133,6 +133,18 @@
             {% endfor %}
             {% endif %}
         </ol>
+
+        <div class="finished-actions">
+            <a class="note note--link" href="/">Retour à l'accueil</a>
+            {% if is_host %}
+            <form method="post" action="/rooms/{{ room.code }}/replay">
+                <input type="hidden" name="player" value="{{ player }}">
+                <button type="submit">Rejouer</button>
+            </form>
+            {% else %}
+            <button type="button" id="propose-replay-button" class="next-button">Proposer de rejouer</button>
+            {% endif %}
+        </div>
     </section>
     {% endif %}
 </main>
