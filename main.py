@@ -368,6 +368,7 @@ async def set_playlist(
     playlist_url: str = Form(...),
     player: str = Form(...),
     desired_count: str = Form(""),
+    embedded: str = Form(""),
 ):
     room_code = code.strip().upper()
     conn = get_connection()
@@ -414,11 +415,16 @@ async def set_playlist(
     # ici entrerait en course avec la redirection HTTP de l'hôte vers /demo.
     _cancel_pending_task(room_code)
     await _advance_round(room_code)
+
+    # Un cadran déjà embarqué dans la vue démo ne doit jamais y rerediriger :
+    # ça imbriquerait une grille démo entière dans son propre écran.
+    if embedded:
+        return _redirect(f"/room/{room_code}", player=player)
     return _redirect(f"/demo/{room_code}", count=players_count, player=player)
 
 
 @app.post("/rooms/{code}/start")
-async def start_round(code: str, player: str = Form(...)):
+async def start_round(code: str, player: str = Form(...), embedded: str = Form("")):
     room_code = code.strip().upper()
     conn = get_connection()
     try:
@@ -440,8 +446,11 @@ async def start_round(code: str, player: str = Form(...)):
     _cancel_pending_task(room_code)
     await _advance_round(room_code)
 
-    # L'hôte est toujours renvoyé vers la vue démo multi-téléphones après un
-    # lancement, plutôt que de rester sur sa propre room.
+    # L'hôte est renvoyé vers la vue démo multi-téléphones après un lancement -
+    # sauf si l'action venait déjà d'un cadran embarqué dans cette vue, auquel
+    # cas rerediriger vers /demo imbriquerait une grille démo dans son écran.
+    if embedded:
+        return _redirect(f"/room/{room_code}", player=player)
     return _redirect(f"/demo/{room_code}", count=players_count, player=player)
 
 
@@ -549,7 +558,7 @@ async def submit_answer(
 
 
 @app.post("/rooms/{code}/replay")
-async def replay_room(code: str, player: str = Form(...)):
+async def replay_room(code: str, player: str = Form(...), embedded: str = Form("")):
     room_code = code.strip().upper()
     conn = get_connection()
     try:
@@ -573,6 +582,9 @@ async def replay_room(code: str, player: str = Form(...)):
         room_code, {"type": "players_update", "players": [dict(p) for p in players]}
     )
     await _advance_round(room_code)
+
+    if embedded:
+        return _redirect(f"/room/{room_code}", player=player)
     return _redirect(f"/demo/{room_code}", count=players_count, player=player)
 
 

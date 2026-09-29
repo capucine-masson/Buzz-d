@@ -9,6 +9,19 @@
     const roomCode = main.dataset.roomCode;
     const player = main.dataset.player;
     const isHost = main.dataset.isHost === "1";
+    // Vrai quand cette page tourne dans un cadran de la vue démo multi-téléphones :
+    // dans ce cas, les actions de l'hôte ne doivent pas rerediriger CE cadran vers
+    // /demo (ça imbriquerait une grille démo entière dans son propre écran).
+    const isEmbedded = document.documentElement.classList.contains("is-embedded");
+
+    const playlistEmbeddedInput = document.getElementById("playlist-embedded-input");
+    if (playlistEmbeddedInput) {
+        playlistEmbeddedInput.value = isEmbedded ? "1" : "";
+    }
+    const replayEmbeddedInput = document.getElementById("replay-embedded-input");
+    if (replayEmbeddedInput) {
+        replayEmbeddedInput.value = isEmbedded ? "1" : "";
+    }
 
     const copyCodeBtn = document.getElementById("copy-code-btn");
     const copyCodeIcon = document.getElementById("copy-code-icon");
@@ -57,6 +70,14 @@
     const demoCountInput = document.getElementById("demo-count-input");
     const proposeReplayButton = document.getElementById("propose-replay-button");
 
+    // Dans la vue démo multi-téléphones, chaque cadran a son propre <audio> pour
+    // le même morceau : les laisser sonner toutes en même temps double la musique
+    // sur les enceintes de l'ordi. Seul le cadran de l'hôte garde le son ; les
+    // autres cadrans embarqués restent muets (le visuel reste synchronisé).
+    if (gameAudio && isEmbedded && !isHost) {
+        gameAudio.muted = true;
+    }
+
     if (playerStepperForm) {
         playerStepperForm.addEventListener("submit", async (event) => {
             event.preventDefault();
@@ -100,7 +121,7 @@
         playersList.textContent = "";
         players.forEach((p) => {
             const li = document.createElement("li");
-            li.textContent = `${p.nickname} — ${p.score} pt(s)`;
+            li.textContent = `${p.nickname} - ${p.score} pt(s)`;
             playersList.appendChild(li);
         });
         if (demoCountInput) {
@@ -235,7 +256,7 @@
         p.className = `result-line ${correct ? "is-correct" : "is-wrong"}`;
 
         const prefix = document.createElement("span");
-        prefix.textContent = `${label} ${correct ? "✓" : "✗"} — `;
+        prefix.textContent = `${label} ${correct ? "✓" : "✗"} - `;
         p.appendChild(prefix);
 
         const details = document.createElement("span");
@@ -292,7 +313,7 @@
                 rank.textContent = `${index + 1}.`;
                 li.appendChild(rank);
 
-                li.appendChild(document.createTextNode(` ${p.nickname} — ${p.score} pt(s)`));
+                li.appendChild(document.createTextNode(` ${p.nickname} - ${p.score} pt(s)`));
                 finalRanking.appendChild(li);
             });
         }
@@ -369,6 +390,11 @@
             input.name = "player";
             input.value = player;
             form.appendChild(input);
+            const embeddedInput = document.createElement("input");
+            embeddedInput.type = "hidden";
+            embeddedInput.name = "embedded";
+            embeddedInput.value = isEmbedded ? "1" : "";
+            form.appendChild(embeddedInput);
             document.body.appendChild(form);
             form.submit();
         });

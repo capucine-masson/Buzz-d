@@ -34,7 +34,7 @@
 
 /* Sans ce override, une classe posant `display` (ex: .card { display: flex })
    a la même spécificité que la règle navigateur [hidden] et peut passer devant
-   selon l'ordre du stylesheet — l'attribut hidden ne masquerait alors plus rien. */
+   selon l'ordre du stylesheet - l'attribut hidden ne masquerait alors plus rien. */
 [hidden] {
     display: none !important;
 }
@@ -575,11 +575,10 @@ body {
 
 .page--demo {
     max-width: 1400px;
-    height: 100vh;
+    min-height: 100vh;
     justify-content: center;
     padding-top: 1rem;
     padding-bottom: 1rem;
-    overflow: hidden;
 }
 
 .phone-grid {
@@ -593,7 +592,7 @@ body {
 
 .phone-frame {
     position: relative;
-    height: min(calc(100vh - 2rem), 950px);
+    height: min(calc(100vh - 2rem), 70vw, 950px);
     aspect-ratio: 9 / 19.5;
     border: 6px solid #2b2f31;
     border-radius: 28px;

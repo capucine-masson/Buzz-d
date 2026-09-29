@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Room {{ room.code }} — Buzz'd{% endblock %}
+{% block title %}Room {{ room.code }} - Buzz'd{% endblock %}
 
 {% block content %}
 <main class="page page--room"
@@ -70,10 +70,10 @@
         <div class="note round-result" id="round-result" {% if not round_info or not round_info.revealed %}hidden{% endif %}>
             {% if round_info and round_info.revealed %}
             <p class="result-line {{ 'is-correct' if round_info.title_correct else 'is-wrong' }}">
-                Titre {{ '✓' if round_info.title_correct else '✗' }} — <span class="note--em">{{ round_info.title }}</span>
+                Titre {{ '✓' if round_info.title_correct else '✗' }} - <span class="note--em">{{ round_info.title }}</span>
             </p>
             <p class="result-line {{ 'is-correct' if round_info.artist_correct else 'is-wrong' }}">
-                Artiste {{ '✓' if round_info.artist_correct else '✗' }} — <span class="note--em">{{ round_info.artist }}</span>
+                Artiste {{ '✓' if round_info.artist_correct else '✗' }} - <span class="note--em">{{ round_info.artist }}</span>
             </p>
             {% endif %}
         </div>
@@ -91,6 +91,8 @@
             {% if is_host and track_count == 0 %}
             <form class="card room-panel" method="post" action="/rooms/{{ room.code }}/playlist">
                 <input type="hidden" name="player" value="{{ player }}">
+                <input type="hidden" name="embedded" id="playlist-embedded-input" value="">
+
                 <h2>Importer la playlist</h2>
                 <label for="playlist_url">Lien playlist Deezer</label>
                 <input id="playlist_url" name="playlist_url" type="url" required
@@ -107,7 +109,7 @@
             <h2>Joueurs</h2>
             <ul id="players-list">
                 {% for p in players %}
-                <li>{{ p.nickname }} — {{ p.score }} pt(s)</li>
+                <li>{{ p.nickname }} - {{ p.score }} pt(s)</li>
                 {% endfor %}
             </ul>
             {% if is_host and room.status == 'lobby' %}
@@ -128,7 +130,7 @@
             {% for p in final_ranking %}
             <li class="ranking-line{% if loop.index == 1 %} is-winner{% endif %}">
                 <span class="ranking-rank">{{ loop.index }}.</span>
-                {{ p.nickname }} — {{ p.score }} pt(s)
+                {{ p.nickname }} - {{ p.score }} pt(s)
             </li>
             {% endfor %}
             {% endif %}
@@ -139,6 +141,7 @@
             {% if is_host %}
             <form method="post" action="/rooms/{{ room.code }}/replay">
                 <input type="hidden" name="player" value="{{ player }}">
+                <input type="hidden" name="embedded" id="replay-embedded-input" value="">
                 <button type="submit">Rejouer</button>
             </form>
             {% else %}
