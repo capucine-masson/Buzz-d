@@ -90,6 +90,13 @@ def set_room_status(conn: sqlite3.Connection, code: str, status: str) -> None:
     conn.commit()
 
 
+def final_ranking(conn: sqlite3.Connection, code: str) -> list[sqlite3.Row]:
+    return conn.execute(
+        "SELECT nickname, score FROM players WHERE room_code = ? ORDER BY score DESC, id ASC",
+        (code,),
+    ).fetchall()
+
+
 def progress(conn: sqlite3.Connection, code: str) -> tuple[int, int]:
     total = count_tracks(conn, code)
     played_row = conn.execute(

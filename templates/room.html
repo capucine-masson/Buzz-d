@@ -41,8 +41,8 @@
         Connecté en tant que <strong>{{ player }}</strong>{% if is_host %} (hôte){% endif %}
     </p>
 
-    <section id="lobby-view" {% if room.status != 'lobby' %}hidden{% endif %}>
-        <div class="room-panels">
+    <div class="room-panels">
+        <section id="lobby-view" {% if room.status != 'lobby' %}hidden{% endif %}>
             {% if is_host and track_count == 0 %}
             <form class="card room-panel" method="post" action="/rooms/{{ room.code }}/playlist">
                 <input type="hidden" name="player" value="{{ player }}">
@@ -61,20 +61,23 @@
                     <input type="hidden" name="player" value="{{ player }}">
                     <button type="submit">Démarrer la partie</button>
                 </form>
+                <a class="note note--link" href="/demo/{{ room.code }}" target="_blank" rel="noopener">
+                    Vue démo multi-téléphones
+                </a>
                 {% endif %}
             </div>
             {% endif %}
+        </section>
 
-            <section class="card room-panel">
-                <h2>Joueurs</h2>
-                <ul id="players-list">
-                    {% for p in players %}
-                    <li>{{ p.nickname }} — {{ p.score }} pt(s)</li>
-                    {% endfor %}
-                </ul>
-            </section>
-        </div>
-    </section>
+        <section id="scoreboard" class="card room-panel" {% if room.status == 'finished' %}hidden{% endif %}>
+            <h2>Joueurs</h2>
+            <ul id="players-list">
+                {% for p in players %}
+                <li>{{ p.nickname }} — {{ p.score }} pt(s)</li>
+                {% endfor %}
+            </ul>
+        </section>
+    </div>
 
     <section id="game-view" class="card game-card" {% if room.status != 'playing' %}hidden{% endif %}>
         <p class="note" id="game-progress">Morceau {{ played }}/{{ total }}</p>
@@ -124,9 +127,19 @@
 
     <section id="finished-view" class="card" {% if room.status != 'finished' %}hidden{% endif %}>
         <h2>Partie terminée</h2>
-        <p class="note">Tous les morceaux ont été joués.</p>
+        <p class="note">Tous les morceaux ont été joués. Classement final :</p>
+        <ol id="final-ranking">
+            {% if final_ranking %}
+            {% for p in final_ranking %}
+            <li class="ranking-line{% if loop.index == 1 %} is-winner{% endif %}">
+                <span class="ranking-rank">{{ loop.index }}.</span>
+                {{ p.nickname }} — {{ p.score }} pt(s)
+            </li>
+            {% endfor %}
+            {% endif %}
+        </ol>
     </section>
     {% endif %}
 </main>
-<script src="/static/js/room.js"></script>
+<script src="/static/js/room.js?v={{ asset_version('js/room.js') }}"></script>
 {% endblock %}

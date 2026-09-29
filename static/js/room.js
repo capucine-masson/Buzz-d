@@ -50,6 +50,8 @@
     const answerSubmit = document.getElementById("answer-submit");
     const roundResult = document.getElementById("round-result");
     const nextRoundButton = document.getElementById("next-round-button");
+    const scoreboard = document.getElementById("scoreboard");
+    const finalRanking = document.getElementById("final-ranking");
 
     function showView(view) {
         [lobbyView, gameView, finishedView].forEach((el) => {
@@ -204,6 +206,12 @@
         if (roundResult) {
             roundResult.hidden = false;
             roundResult.textContent = "";
+            if (!data.answered_by) {
+                const timeoutNote = document.createElement("p");
+                timeoutNote.className = "result-line";
+                timeoutNote.textContent = "Personne n'a buzzé à temps...";
+                roundResult.appendChild(timeoutNote);
+            }
             roundResult.appendChild(resultLine("Titre", data.title_correct, data.title));
             roundResult.appendChild(resultLine("Artiste", data.artist_correct, data.artist));
         }
@@ -212,13 +220,31 @@
         }
     }
 
-    function gameOver() {
+    function gameOver(data) {
         showView(finishedView);
         if (roomCodePanel) {
             roomCodePanel.hidden = true;
         }
         if (playerStatusNote) {
             playerStatusNote.hidden = true;
+        }
+        if (scoreboard) {
+            scoreboard.hidden = true;
+        }
+        if (finalRanking && data && Array.isArray(data.players)) {
+            finalRanking.textContent = "";
+            data.players.forEach((p, index) => {
+                const li = document.createElement("li");
+                li.className = `ranking-line${index === 0 ? " is-winner" : ""}`;
+
+                const rank = document.createElement("span");
+                rank.className = "ranking-rank";
+                rank.textContent = `${index + 1}.`;
+                li.appendChild(rank);
+
+                li.appendChild(document.createTextNode(` ${p.nickname} — ${p.score} pt(s)`));
+                finalRanking.appendChild(li);
+            });
         }
     }
 
@@ -233,19 +259,14 @@
                 });
                 const data = await response.json();
                 if (!data.locked) {
-                    // Quelqu'un d'autre a buzzé avant, ou trop tard : le message
-                    // "buzz_locked" du WebSocket met de toute façon l'UI à jour.
+                    // Quelqu'un d'autre a buzzé avant, ou trop tard : réactive le
+                    // bouton (le message "buzz_locked" du WebSocket le redésactivera
+                    // de toute façon si quelqu'un d'autre a effectivement gagné).
+                    buzzButton.disabled = false;
                 }
             } catch (err) {
                 buzzButton.disabled = false;
             }
-        });
-    }
-
-    if (audioUnlock) {
-        audioUnlock.addEventListener("click", () => {
-            tryAutoplay();
-            audioUnlock.hidden = true;
         });
     }
 
@@ -333,7 +354,7 @@
                     showResult(message);
                     break;
                 case "game_over":
-                    gameOver();
+                    gameOver(message);
                     break;
                 default:
                     break;

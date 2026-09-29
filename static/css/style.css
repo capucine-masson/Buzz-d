@@ -105,7 +105,7 @@ body {
 .page--room {
     padding-top: 3rem;
     gap: 1rem;
-    max-width: 960px;
+    max-width: 1400px;
 }
 
 #room-code-panel {
@@ -165,16 +165,33 @@ body {
 
 .room-panels {
     width: 100%;
+    max-width: 1100px;
+    margin: 0 auto;
     display: flex;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
     justify-content: center;
     align-items: stretch;
     gap: 1.25rem;
 }
 
+#lobby-view {
+    display: contents;
+}
+
 .room-panels .room-panel {
-    flex: 1 1 300px;
-    max-width: 380px;
+    flex: 1 1 50%;
+    min-width: 0;
+    max-width: none;
+}
+
+@media (max-width: 640px) {
+    .room-panels {
+        flex-wrap: wrap;
+    }
+
+    .room-panels .room-panel {
+        flex: 1 1 100%;
+    }
 }
 
 .home-forms {
@@ -397,4 +414,101 @@ body {
     background: var(--input-border);
     cursor: not-allowed;
     opacity: 0.7;
+}
+
+.note--link {
+    text-decoration: none;
+    text-align: center;
+    display: inline-block;
+}
+
+.note--link:hover {
+    filter: brightness(1.1);
+}
+
+#scoreboard {
+    max-width: 420px;
+}
+
+#final-ranking {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    width: 100%;
+    text-align: left;
+}
+
+.ranking-line {
+    background: var(--list-item-bg);
+    border-radius: 8px;
+    padding: 0.5rem 0.75rem;
+}
+
+.ranking-line.is-winner {
+    background: var(--color-green);
+    color: var(--color-white);
+    font-weight: bold;
+}
+
+.ranking-rank {
+    font-family: var(--font-note);
+    margin-right: 0.35rem;
+}
+
+.page--demo {
+    max-width: 1400px;
+}
+
+.phone-grid {
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 1.5rem;
+}
+
+.phone-frame {
+    position: relative;
+    width: 200px;
+    aspect-ratio: 9 / 19.5;
+    border: 10px solid var(--color-dark);
+    border-radius: 32px;
+    overflow: hidden;
+    background: var(--color-white);
+    box-shadow: 0 8px 24px var(--card-shadow);
+}
+
+.phone-frame__label {
+    position: absolute;
+    top: 0.35rem;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 2;
+    font-family: var(--font-note);
+    font-size: 0.7rem;
+    background: var(--color-dark);
+    color: var(--color-white);
+    padding: 0.1rem 0.5rem;
+    border-radius: 999px;
+}
+
+.phone-frame__notch {
+    position: absolute;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 40%;
+    height: 1.25rem;
+    background: var(--color-dark);
+    border-radius: 0 0 12px 12px;
+    z-index: 1;
+}
+
+.phone-frame__screen {
+    width: 100%;
+    height: 100%;
+    border: none;
 }
