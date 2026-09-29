@@ -1,6 +1,7 @@
 import asyncio
 import random
 import sqlite3
+import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 from urllib.parse import urlencode
@@ -25,6 +26,8 @@ NICKNAME_MAX_LENGTH = 20
 ROUND_TIMEOUT_SECONDS = 32  # un peu plus long qu'un extrait Deezer (30s)
 NEXT_ROUND_DELAY_SECONDS = 4  # temps de lire le résultat avant d'enchaîner
 HOST_LEAVE_GRACE_SECONDS = 5  # laisse le temps à un simple reload de page de se reconnecter
+ROOM_IDLE_TIMEOUT_SECONDS = 15 * 60  # purge une room sans activité depuis plus de 15 min
+ROOM_CLEANUP_INTERVAL_SECONDS = 60  # fréquence du passage de ménage
 
 # Une seule tâche "en attente" à la fois par room : soit le minuteur qui force la
 # révélation si personne ne buzze, soit le délai avant d'enchaîner sur le morceau
@@ -34,6 +37,16 @@ _pending_tasks: dict[str, asyncio.Task] = {}
 # Tâche de "grâce" après la déconnexion de l'hôte : si aucune reconnexion de sa
 # part n'arrive dans les temps, la room est considérée comme abandonnée.
 _host_leave_tasks: dict[str, asyncio.Task] = {}
+
+# Horodatage (perf counter) de la dernière activité par room : une room jamais
+# retouchée pendant ROOM_IDLE_TIMEOUT_SECONDS est purgée par _cleanup_idle_rooms,
+# playlist/morceaux/joueurs compris (cascade FK), pour ne pas laisser la base
+# grossir indéfiniment avec des parties abandonnées.
+_room_last_seen: dict[str, float] = {}
+
+
+def _touch_room(room_code: str) -> None:
+    _room_last_seen[room_code] = time.monotonic()
 
 
 def _cancel_pending_task(room_code: str) -> None:
@@ -46,6 +59,34 @@ def _cancel_host_leave_task(room_code: str) -> None:
     task = _host_leave_tasks.pop(room_code, None)
     if task and not task.done():
         task.cancel()
+
+
+async def _cleanup_idle_rooms() -> None:
+    while True:
+        await asyncio.sleep(ROOM_CLEANUP_INTERVAL_SECONDS)
+        now = time.monotonic()
+        stale_codes = [
+            code
+            for code, last_seen in list(_room_last_seen.items())
+            if now - last_seen > ROOM_IDLE_TIMEOUT_SECONDS
+        ]
+        if not stale_codes:
+            continue
+
+        conn = get_connection()
+        try:
+            conn.executemany(
+                "DELETE FROM rooms WHERE code = ?", [(code,) for code in stale_codes]
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+        for code in stale_codes:
+            _room_last_seen.pop(code, None)
+            _cancel_pending_task(code)
+            _cancel_host_leave_task(code)
+            rounds.clear(code)
 
 
 async def _handle_host_disconnect(room_code: str, host_nickname: str) -> None:
@@ -73,7 +114,11 @@ async def _handle_host_disconnect(room_code: str, host_nickname: str) -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
-    yield
+    cleanup_task = asyncio.create_task(_cleanup_idle_rooms())
+    try:
+        yield
+    finally:
+        cleanup_task.cancel()
 
 
 app = FastAPI(title="Buzz'd", lifespan=lifespan)
@@ -215,6 +260,7 @@ async def create_room(nickname: str = Form(...)):
     finally:
         conn.close()
 
+    _touch_room(code)
     return _redirect(f"/room/{code}", player=clean_nickname)
 
 
@@ -251,6 +297,7 @@ async def join_room(code: str = Form(...), nickname: str = Form(...)):
     finally:
         conn.close()
 
+    _touch_room(room_code)
     await manager.broadcast(
         room_code, {"type": "players_update", "players": [dict(p) for p in players]}
     )
@@ -288,6 +335,7 @@ async def add_test_player(code: str, player: str = Form(...), nickname: str = Fo
     finally:
         conn.close()
 
+    _touch_room(room_code)
     await manager.broadcast(
         room_code, {"type": "players_update", "players": [dict(p) for p in players]}
     )
@@ -309,6 +357,7 @@ async def room_page(request: Request, code: str, player: str = "", error: str = 
     finally:
         conn.close()
 
+    _touch_room(room_code)
     is_host = bool(player) and player == room["host_nickname"]
     round_info = rounds.get(room_code)
 
@@ -351,6 +400,7 @@ async def demo_page(request: Request, code: str, count: int = 0, player: str = "
     finally:
         conn.close()
 
+    _touch_room(room_code)
     # `count` fixe un nombre minimum de cadrans : on complète avec des écrans
     # vierges (pointant vers l'accueil) si moins de joueurs ont déjà rejoint.
     extra_count = max(0, count - len(players))
@@ -409,6 +459,7 @@ async def set_playlist(
     finally:
         conn.close()
 
+    _touch_room(room_code)
     # L'import lance directement la partie (plus d'étape intermédiaire "Playlist prête").
     # Pas de broadcast "playlist_loaded" ici : round_start (dans _advance_round) suffit
     # à faire basculer l'UI de tout le monde, et un message qui forcerait une navigation
@@ -441,6 +492,7 @@ async def start_round(code: str, player: str = Form(...), embedded: str = Form("
     finally:
         conn.close()
 
+    _touch_room(room_code)
     # Un déclenchement manuel de l'hôte (premier morceau ou "morceau suivant" pour
     # sauter l'attente) prime toujours sur un enchaînement automatique en cours.
     _cancel_pending_task(room_code)
@@ -472,6 +524,7 @@ async def set_playback(code: str, player: str = Form(...), action: str = Form(..
     finally:
         conn.close()
 
+    _touch_room(room_code)
     await manager.broadcast(room_code, {"type": "playback", "action": action})
     return JSONResponse({"ok": True})
 
@@ -487,6 +540,7 @@ async def buzz(code: str, player: str = Form(...)):
     finally:
         conn.close()
 
+    _touch_room(room_code)
     locked = await rounds.try_buzz(room_code, player)
     if locked:
         await manager.broadcast(room_code, {"type": "buzz_locked", "locked_by": player})
@@ -505,6 +559,8 @@ async def submit_answer(
 
     if round_info is None or round_info["locked_by"] != player or round_info["revealed"]:
         return JSONResponse({"error": "invalid_state"}, status_code=409)
+
+    _touch_room(room_code)
 
     title = round_info["title"]
     artist = round_info["artist"]
@@ -591,6 +647,7 @@ async def replay_room(code: str, player: str = Form(...), embedded: str = Form("
     finally:
         conn.close()
 
+    _touch_room(room_code)
     _cancel_pending_task(room_code)
     await manager.broadcast(
         room_code, {"type": "players_update", "players": [dict(p) for p in players]}
@@ -613,6 +670,7 @@ async def propose_replay(code: str, player: str = Form(...)):
     finally:
         conn.close()
 
+    _touch_room(room_code)
     await manager.broadcast(room_code, {"type": "replay_proposed", "by": player})
     return JSONResponse({"ok": True})
 
@@ -646,6 +704,7 @@ async def leave_room(code: str, player: str = Form(...)):
 async def room_websocket(websocket: WebSocket, room_code: str, player: str = ""):
     code = room_code.strip().upper()
     clean_player = player.strip()
+    _touch_room(code)
     await manager.connect(code, clean_player, websocket)
 
     conn = get_connection()
