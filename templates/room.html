@@ -2,6 +2,21 @@
 
 {% block title %}Room {{ room.code }} - Buzz'd{% endblock %}
 
+{% block top_left %}
+{% if is_host %}
+<form method="post" action="/rooms/{{ room.code }}/leave">
+    <input type="hidden" name="player" value="{{ player }}">
+    <button type="submit" class="icon-button icon-button--home" aria-label="Quitter et retourner à l'accueil">
+        <img src="/static/css/logo%20BUZZ'D.jpg" alt="" class="icon-button__logo">
+    </button>
+</form>
+{% else %}
+<a href="/" class="icon-button icon-button--home" aria-label="Retour à l'accueil">
+    <img src="/static/css/logo%20BUZZ'D.jpg" alt="" class="icon-button__logo">
+</a>
+{% endif %}
+{% endblock %}
+
 {% block content %}
 <main class="page page--room"
       data-room-code="{{ room.code }}"
@@ -137,7 +152,14 @@
         </ol>
 
         <div class="finished-actions">
+            {% if is_host %}
+            <form method="post" action="/rooms/{{ room.code }}/leave">
+                <input type="hidden" name="player" value="{{ player }}">
+                <button type="submit" class="note note--link">Retour à l'accueil</button>
+            </form>
+            {% else %}
             <a class="note note--link" href="/">Retour à l'accueil</a>
+            {% endif %}
             {% if is_host %}
             <form method="post" action="/rooms/{{ room.code }}/replay">
                 <input type="hidden" name="player" value="{{ player }}">

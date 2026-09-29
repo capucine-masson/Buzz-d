@@ -73,3 +73,13 @@ static/          # CSS, JS vanilla, assets
 - Clé API Groq lue depuis `.env`, jamais en dur dans le code, `.env` exclu de git
 - Timeouts sur tous les appels HTTP externes (Deezer, Groq)
 - Liste blanche de domaines pour la résolution des liens courts Deezer (anti-SSRF)
+
+## Aperçu
+
+![Accueil - clair](apercu/accueil-light.png)
+
+![Accueil - sombre](apercu/accueil-dark.png)
+
+![Room](apercu/room.png)
+
+![Partie en cours](apercu/game.png)

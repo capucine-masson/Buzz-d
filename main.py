@@ -617,6 +617,31 @@ async def propose_replay(code: str, player: str = Form(...)):
     return JSONResponse({"ok": True})
 
 
+@app.post("/rooms/{code}/leave")
+async def leave_room(code: str, player: str = Form(...)):
+    """Départ explicite (clic sur le logo ou "Retour à l'accueil"). Contrairement à
+    la détection par déconnexion WebSocket, ceci est un signal volontaire et sans
+    ambiguïté : pas de délai de grâce, la room se termine immédiatement si c'est
+    l'hôte qui part."""
+    room_code = code.strip().upper()
+    conn = get_connection()
+    try:
+        room = game.get_room(conn, room_code)
+        is_host = room is not None and player == room["host_nickname"]
+        if is_host and room["status"] != "finished":
+            game.set_room_status(conn, room_code, "finished")
+    finally:
+        conn.close()
+
+    if is_host:
+        _cancel_pending_task(room_code)
+        _cancel_host_leave_task(room_code)
+        rounds.clear(room_code)
+        await manager.broadcast(room_code, {"type": "host_left"})
+
+    return _redirect("/")
+
+
 @app.websocket("/ws/{room_code}")
 async def room_websocket(websocket: WebSocket, room_code: str, player: str = ""):
     code = room_code.strip().upper()
