@@ -571,6 +571,20 @@ async def replay_room(code: str, player: str = Form(...), embedded: str = Form("
                 f"/room/{room_code}", player=player, error="Seul l'hôte peut relancer la partie"
             )
 
+        # Retire un nouveau tirage dans la playlist d'origine plutôt que de rejouer
+        # systématiquement les mêmes morceaux que la partie précédente.
+        previous_count = game.count_tracks(conn, room_code)
+        if room["playlist_url"]:
+            try:
+                playlist_id = await deezer.resolve_playlist_id(room["playlist_url"])
+                tracks = await deezer.fetch_playlist_tracks(playlist_id)
+            except deezer.DeezerError:
+                tracks = None
+            if tracks:
+                if 0 < previous_count < len(tracks):
+                    tracks = random.sample(tracks, previous_count)
+                game.save_tracks(conn, room_code, tracks)
+
         game.reset_for_replay(conn, room_code)
         players = game.list_players(conn, room_code)
         players_count = len(players)

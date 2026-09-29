@@ -111,9 +111,10 @@ def final_ranking(conn: sqlite3.Connection, code: str) -> list[sqlite3.Row]:
 
 
 def reset_for_replay(conn: sqlite3.Connection, code: str) -> None:
-    """Remet la room à zéro pour une nouvelle partie avec la même playlist :
-    scores et morceaux joués réinitialisés, statut repassé en lobby."""
-    conn.execute("UPDATE tracks SET played = 0 WHERE room_code = ?", (code,))
+    """Remet la room à zéro pour une nouvelle partie avec les mêmes joueurs :
+    scores réinitialisés, statut repassé en lobby. Les morceaux eux-mêmes sont
+    retirés au tirage sur la playlist d'origine par l'appelant (main.py), pour
+    qu'une partie rejouée ne retombe pas systématiquement sur les mêmes titres."""
     conn.execute("UPDATE players SET score = 0 WHERE room_code = ?", (code,))
     conn.execute("UPDATE rooms SET status = 'lobby' WHERE code = ?", (code,))
     conn.commit()
