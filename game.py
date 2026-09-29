@@ -73,6 +73,19 @@ def player_exists(conn: sqlite3.Connection, code: str, nickname: str) -> bool:
     return row is not None
 
 
+def nickname_active_elsewhere(conn: sqlite3.Connection, nickname: str) -> bool:
+    """Un pseudo est unique parmi les parties actives (statut != 'finished') : une
+    fois la partie terminée, le pseudo redevient libre pour une nouvelle room."""
+    row = conn.execute(
+        """SELECT 1 FROM players p
+           JOIN rooms r ON r.code = p.room_code
+           WHERE p.nickname = ? AND r.status != 'finished'
+           LIMIT 1""",
+        (nickname,),
+    ).fetchone()
+    return row is not None
+
+
 def get_random_unplayed_track(conn: sqlite3.Connection, code: str) -> sqlite3.Row | None:
     return conn.execute(
         "SELECT * FROM tracks WHERE room_code = ? AND played = 0 ORDER BY RANDOM() LIMIT 1",

@@ -2,24 +2,49 @@
 
 {% block title %}Démo {{ room.code }} — Buzz'd{% endblock %}
 
+{% block top_left %}
+<a href="/room/{{ room.code }}{% if player %}?player={{ player }}{% endif %}"
+   class="icon-button icon-button--back" aria-label="Retour à la room">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M19 12H5"></path>
+        <path d="m12 19-7-7 7-7"></path>
+    </svg>
+</a>
+{% endblock %}
+
 {% block content %}
 <main class="page page--demo">
-    {% if not players %}
+    {% if not players and not extra_count %}
     <p class="note note--error">Aucun joueur dans cette room pour l'instant.</p>
     {% endif %}
 
     <div class="phone-grid" id="phone-grid">
         {% for p in players %}
         <div class="phone-frame">
+            <button type="button" class="phone-remove-button" aria-label="Retirer ce téléphone">×</button>
             <span class="phone-frame__label">{{ p.nickname }}</span>
             <div class="phone-frame__notch" aria-hidden="true"></div>
             <iframe class="phone-frame__screen"
-                    src="/room/{{ room.code }}?player={{ p.nickname }}&embedded=1"
+                    src="/room/{{ room.code }}?player={{ p.nickname }}"
                     loading="lazy"
                     title="Écran de {{ p.nickname }}"></iframe>
         </div>
         {% endfor %}
+        {% for _ in range(extra_count) %}
+        <div class="phone-frame">
+            <button type="button" class="phone-remove-button" aria-label="Retirer ce téléphone">×</button>
+            <span class="phone-frame__label">En attente</span>
+            <div class="phone-frame__notch" aria-hidden="true"></div>
+            <iframe class="phone-frame__screen"
+                    src="/"
+                    loading="lazy"
+                    title="Nouvel écran"></iframe>
+        </div>
+        {% endfor %}
+        {% if room.status == 'lobby' %}
         <button type="button" class="phone-add-button" id="phone-add-button" aria-label="Ajouter un téléphone">+</button>
+        {% endif %}
     </div>
 </main>
 <script src="/static/js/demo.js?v={{ asset_version('js/demo.js') }}"></script>

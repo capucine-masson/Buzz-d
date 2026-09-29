@@ -1,8 +1,23 @@
 <!DOCTYPE html>
-<html lang="fr"{% if request.query_params.get('embedded') %} class="is-embedded"{% endif %}>
+<html lang="fr">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script>
+        // Détecte si la page est chargée dans une iframe (vue démo multi-téléphones)
+        // pour appliquer un affichage compact, quelle que soit la navigation interne.
+        (function () {
+            var isEmbedded;
+            try {
+                isEmbedded = window.self !== window.top;
+            } catch (e) {
+                isEmbedded = true;
+            }
+            if (isEmbedded) {
+                document.documentElement.classList.add("is-embedded");
+            }
+        })();
+    </script>
     <title>{% block title %}Buzz'd{% endblock %}</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -10,9 +25,11 @@
     <link rel="stylesheet" href="/static/css/style.css?v={{ asset_version('css/style.css') }}">
 </head>
 <body>
+    {% block top_left %}
     <a href="/" class="icon-button icon-button--home" aria-label="Retour à l'accueil">
         <img src="/static/css/logo%20BUZZ'D.jpg" alt="" class="icon-button__logo">
     </a>
+    {% endblock %}
     <button id="theme-toggle" class="icon-button theme-toggle" type="button" aria-label="Changer de thème">
         <svg id="theme-toggle-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>

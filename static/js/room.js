@@ -52,6 +52,31 @@
     const nextRoundButton = document.getElementById("next-round-button");
     const scoreboard = document.getElementById("scoreboard");
     const finalRanking = document.getElementById("final-ranking");
+    const playerStepperForm = document.getElementById("player-stepper");
+    const playerStepperInput = document.getElementById("player-stepper-input");
+    const demoCountInput = document.getElementById("demo-count-input");
+
+    if (playerStepperForm) {
+        playerStepperForm.addEventListener("submit", async (event) => {
+            event.preventDefault();
+            const nickname = playerStepperInput ? playerStepperInput.value.trim() : "";
+            if (!nickname) {
+                return;
+            }
+            try {
+                await fetch(`/rooms/${roomCode}/test-player`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                    body: new URLSearchParams({ player, nickname }),
+                });
+                if (playerStepperInput) {
+                    playerStepperInput.value = "";
+                }
+            } catch (err) {
+                // Le websocket players_update retentera de toute façon la sync visuelle.
+            }
+        });
+    }
 
     function showView(view) {
         [lobbyView, gameView, finishedView].forEach((el) => {
@@ -77,6 +102,9 @@
             li.textContent = `${p.nickname} — ${p.score} pt(s)`;
             playersList.appendChild(li);
         });
+        if (demoCountInput) {
+            demoCountInput.value = players.length;
+        }
     }
 
     function tryAutoplay() {

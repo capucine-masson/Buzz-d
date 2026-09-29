@@ -1,4 +1,5 @@
 import asyncio
+import random
 import sqlite3
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -174,6 +175,9 @@ async def create_room(nickname: str = Form(...)):
 
     conn = get_connection()
     try:
+        if game.nickname_active_elsewhere(conn, clean_nickname):
+            conn.close()
+            return _redirect("/", error="Ce pseudo est déjà utilisé dans une partie en cours")
         code = game.create_room(conn, clean_nickname)
     finally:
         conn.close()
@@ -198,6 +202,12 @@ async def join_room(code: str = Form(...), nickname: str = Form(...)):
             conn.close()
             return _redirect("/", error="Room introuvable")
 
+        if game.nickname_active_elsewhere(conn, clean_nickname):
+            conn.close()
+            return _redirect(
+                f"/room/{room_code}", error="Ce pseudo est déjà utilisé dans une partie en cours"
+            )
+
         try:
             game.add_player(conn, room_code, clean_nickname)
         except sqlite3.IntegrityError:
@@ -214,8 +224,45 @@ async def join_room(code: str = Form(...), nickname: str = Form(...)):
     return _redirect(f"/room/{room_code}", player=clean_nickname)
 
 
+@app.post("/rooms/{code}/test-player")
+async def add_test_player(code: str, player: str = Form(...), nickname: str = Form(...)):
+    room_code = code.strip().upper()
+    clean_nickname = _clean_nickname(nickname)
+    if clean_nickname is None:
+        return JSONResponse({"error": "invalid_nickname"}, status_code=400)
+
+    conn = get_connection()
+    try:
+        room = game.get_room(conn, room_code)
+        if room is None:
+            conn.close()
+            return JSONResponse({"error": "room_not_found"}, status_code=404)
+        if player != room["host_nickname"]:
+            conn.close()
+            return JSONResponse({"error": "not_host"}, status_code=403)
+
+        if game.nickname_active_elsewhere(conn, clean_nickname):
+            conn.close()
+            return JSONResponse({"error": "nickname_taken"}, status_code=409)
+
+        try:
+            game.add_player(conn, room_code, clean_nickname)
+        except sqlite3.IntegrityError:
+            conn.close()
+            return JSONResponse({"error": "nickname_taken"}, status_code=409)
+
+        players = game.list_players(conn, room_code)
+    finally:
+        conn.close()
+
+    await manager.broadcast(
+        room_code, {"type": "players_update", "players": [dict(p) for p in players]}
+    )
+    return JSONResponse({"ok": True})
+
+
 @app.get("/room/{code}")
-async def room_page(request: Request, code: str, player: str = "", error: str = "", loaded: str = ""):
+async def room_page(request: Request, code: str, player: str = "", error: str = ""):
     room_code = code.strip().upper()
     conn = get_connection()
     try:
@@ -254,13 +301,12 @@ async def room_page(request: Request, code: str, player: str = "", error: str = 
             "round_info": round_info,
             "final_ranking": final_ranking,
             "error": error,
-            "loaded": loaded,
         },
     )
 
 
 @app.get("/demo/{code}")
-async def demo_page(request: Request, code: str):
+async def demo_page(request: Request, code: str, count: int = 0, player: str = ""):
     room_code = code.strip().upper()
     conn = get_connection()
     try:
@@ -272,11 +318,24 @@ async def demo_page(request: Request, code: str):
     finally:
         conn.close()
 
-    return templates.TemplateResponse(request, "demo.html", {"room": room, "players": players})
+    # `count` fixe un nombre minimum de cadrans : on complète avec des écrans
+    # vierges (pointant vers l'accueil) si moins de joueurs ont déjà rejoint.
+    extra_count = max(0, count - len(players))
+
+    return templates.TemplateResponse(
+        request,
+        "demo.html",
+        {"room": room, "players": players, "extra_count": extra_count, "player": player},
+    )
 
 
 @app.post("/rooms/{code}/playlist")
-async def set_playlist(code: str, playlist_url: str = Form(...), player: str = Form(...)):
+async def set_playlist(
+    code: str,
+    playlist_url: str = Form(...),
+    player: str = Form(...),
+    desired_count: str = Form(""),
+):
     room_code = code.strip().upper()
     conn = get_connection()
     try:
@@ -298,14 +357,30 @@ async def set_playlist(code: str, playlist_url: str = Form(...), player: str = F
             conn.close()
             return _redirect(f"/room/{room_code}", player=player, error=str(exc))
 
+        # On ne garde en base que le nombre de morceaux réellement demandé (tirés au
+        # sort dans la playlist complète) plutôt que d'y stocker des centaines de
+        # morceaux qui ne seront jamais joués.
+        if desired_count.strip():
+            try:
+                parsed_count = int(desired_count)
+            except ValueError:
+                parsed_count = None
+            if parsed_count is not None and 0 < parsed_count < len(tracks):
+                tracks = random.sample(tracks, parsed_count)
+
         game.save_tracks(conn, room_code, tracks)
         conn.execute("UPDATE rooms SET playlist_url = ? WHERE code = ?", (playlist_url, room_code))
         conn.commit()
+        players_count = len(game.list_players(conn, room_code))
     finally:
         conn.close()
 
     await manager.broadcast(room_code, {"type": "playlist_loaded", "track_count": len(tracks)})
-    return _redirect(f"/room/{room_code}", player=player, loaded=str(len(tracks)))
+
+    # L'import lance directement la partie (plus d'étape intermédiaire "Playlist prête").
+    _cancel_pending_task(room_code)
+    await _advance_round(room_code)
+    return _redirect(f"/demo/{room_code}", count=players_count, player=player)
 
 
 @app.post("/rooms/{code}/start")
@@ -321,6 +396,9 @@ async def start_round(code: str, player: str = Form(...)):
             return _redirect(
                 f"/room/{room_code}", player=player, error="Seul l'hôte peut lancer la manche"
             )
+
+        was_lobby = room["status"] == "lobby"
+        players_count = len(game.list_players(conn, room_code))
     finally:
         conn.close()
 
@@ -328,6 +406,11 @@ async def start_round(code: str, player: str = Form(...)):
     # sauter l'attente) prime toujours sur un enchaînement automatique en cours.
     _cancel_pending_task(room_code)
     await _advance_round(room_code)
+
+    # Le tout premier lancement (encore en lobby) envoie l'hôte vers la vue démo
+    # multi-téléphones plutôt que de le laisser sur sa propre room.
+    if was_lobby:
+        return _redirect(f"/demo/{room_code}", count=players_count, player=player)
     return _redirect(f"/room/{room_code}", player=player)
 
 

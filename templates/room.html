@@ -25,9 +25,6 @@
     {% if error %}
     <p class="note note--error note--flash">{{ error }}</p>
     {% endif %}
-    {% if loaded %}
-    <p class="note note--flash">{{ loaded }} morceaux chargés !</p>
-    {% endif %}
 
     {% if not player %}
     <form class="card" method="post" action="/join">
@@ -41,53 +38,18 @@
         Connecté en tant que <strong>{{ player }}</strong>{% if is_host %} (hôte){% endif %}
     </p>
 
-    <div class="room-panels">
-        <section id="lobby-view" {% if room.status != 'lobby' %}hidden{% endif %}>
-            {% if is_host and track_count == 0 %}
-            <form class="card room-panel" method="post" action="/rooms/{{ room.code }}/playlist">
-                <input type="hidden" name="player" value="{{ player }}">
-                <h2>Importer la playlist</h2>
-                <label for="playlist_url">Lien playlist Deezer</label>
-                <input id="playlist_url" name="playlist_url" type="url" required
-                       placeholder="https://www.deezer.com/fr/playlist/1234567890">
-                <button type="submit">Importer</button>
-            </form>
-            {% elif track_count > 0 %}
-            <div class="card room-panel">
-                <h2>Playlist prête</h2>
-                {% if is_host %}
-                <form method="post" action="/rooms/{{ room.code }}/start">
-                    <input type="hidden" name="player" value="{{ player }}">
-                    <button type="submit">Démarrer la partie</button>
-                </form>
-                <a class="note note--link" href="/demo/{{ room.code }}" target="_blank" rel="noopener">
-                    Vue démo multi-téléphones
-                </a>
-                {% endif %}
-            </div>
-            {% endif %}
-        </section>
-
-        <section id="scoreboard" class="card room-panel" {% if room.status == 'finished' %}hidden{% endif %}>
-            <h2>Joueurs</h2>
-            <ul id="players-list">
-                {% for p in players %}
-                <li>{{ p.nickname }} — {{ p.score }} pt(s)</li>
-                {% endfor %}
-            </ul>
-        </section>
-    </div>
-
     <section id="game-view" class="card game-card" {% if room.status != 'playing' %}hidden{% endif %}>
         <p class="note" id="game-progress">Morceau {{ played }}/{{ total }}</p>
 
         <audio id="game-audio" preload="auto" {% if round_info %}src="{{ round_info.preview_url }}"{% endif %}></audio>
+        {% if is_host %}
         <button id="play-pause-button" class="play-pause-button" type="button"
                 aria-label="Lecture / pause" {% if not round_info %}disabled{% endif %}>▶</button>
+        {% endif %}
 
         <button id="buzz-button" class="buzz-button" type="button"
                 {% if not round_info or round_info.locked_by or round_info.revealed %}disabled{% endif %}>
-            BUZZ
+            <img src="/static/css/logo%20BUZZ'D.jpg" alt="Buzz" class="buzz-button__logo">
         </button>
 
         <p class="note" id="buzz-status" {% if not round_info or not round_info.locked_by or round_info.revealed %}hidden{% endif %}>
@@ -123,6 +85,40 @@
         </button>
         {% endif %}
     </section>
+
+    <div class="room-panels">
+        <section id="lobby-view" {% if room.status != 'lobby' %}hidden{% endif %}>
+            {% if is_host and track_count == 0 %}
+            <form class="card room-panel" method="post" action="/rooms/{{ room.code }}/playlist">
+                <input type="hidden" name="player" value="{{ player }}">
+                <h2>Importer la playlist</h2>
+                <label for="playlist_url">Lien playlist Deezer</label>
+                <input id="playlist_url" name="playlist_url" type="url" required
+                       placeholder="https://www.deezer.com/fr/playlist/1234567890">
+                <label for="desired-count-input">Nombre de morceaux à jouer</label>
+                <input id="desired-count-input" name="desired_count" type="number" min="1"
+                       placeholder="Tous">
+                <button type="submit">Démarrer la partie</button>
+            </form>
+            {% endif %}
+        </section>
+
+        <section id="scoreboard" class="card room-panel" {% if room.status == 'finished' %}hidden{% endif %}>
+            <h2>Joueurs</h2>
+            <ul id="players-list">
+                {% for p in players %}
+                <li>{{ p.nickname }} — {{ p.score }} pt(s)</li>
+                {% endfor %}
+            </ul>
+            {% if is_host and room.status == 'lobby' %}
+            <form class="player-stepper" id="player-stepper">
+                <input id="player-stepper-input" type="text" maxlength="20" autocomplete="off"
+                       placeholder="Pseudo joueur test">
+                <button type="submit" class="icon-button-inline" id="player-stepper-plus" aria-label="Ajouter un joueur test">+</button>
+            </form>
+            {% endif %}
+        </section>
+    </div>
 
     <section id="finished-view" class="card" {% if room.status != 'finished' %}hidden{% endif %}>
         <h2>Partie terminée</h2>
