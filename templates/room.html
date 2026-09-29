@@ -3,9 +3,21 @@
 {% block title %}Room {{ room.code }} — Buzz'd{% endblock %}
 
 {% block content %}
-<main class="page page--room" data-room-code="{{ room.code }}">
-    <h1 class="brand-title">{{ room.code }}</h1>
-    <p class="note">Partage ce code à tes potes pour qu'ils rejoignent.</p>
+<main class="page page--room"
+      data-room-code="{{ room.code }}"
+      data-player="{{ player }}"
+      data-is-host="{{ '1' if is_host else '' }}"
+      data-room-status="{{ room.status }}">
+    <p class="lead">Voici le code à partager à tes potes :</p>
+    <div class="room-code">
+        <span class="room-code__value" id="room-code-value">{{ room.code }}</span>
+        <button type="button" class="icon-button-inline" id="copy-code-btn" aria-label="Copier le code">
+            <svg id="copy-code-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <rect x="9" y="9" width="12" height="12" rx="2"></rect>
+                <path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"></path>
+            </svg>
+        </button>
+    </div>
 
     {% if error %}
     <p class="note note--error note--flash">{{ error }}</p>
@@ -22,28 +34,85 @@
         <button type="submit">Rejoindre</button>
     </form>
     {% else %}
-    <p class="note">Connecté en tant que <strong>{{ player }}</strong>{% if is_host %} (hôte){% endif %}</p>
+    <p class="note note--compact">Connecté en tant que <strong>{{ player }}</strong>{% if is_host %} (hôte){% endif %}</p>
 
-    {% if is_host and track_count == 0 %}
-    <form class="card" method="post" action="/rooms/{{ room.code }}/playlist">
-        <input type="hidden" name="player" value="{{ player }}">
-        <h2>Importer la playlist</h2>
-        <label for="playlist_url">Lien playlist Deezer</label>
-        <input id="playlist_url" name="playlist_url" type="url" required
-               placeholder="https://www.deezer.com/fr/playlist/1234567890">
-        <button type="submit">Importer</button>
-    </form>
-    {% elif track_count > 0 %}
-    <p class="note">{{ track_count }} morceaux prêts à jouer.</p>
-    {% endif %}
+    <section id="lobby-view" {% if room.status != 'lobby' %}hidden{% endif %}>
+        <div class="room-panels">
+            {% if is_host and track_count == 0 %}
+            <form class="card room-panel" method="post" action="/rooms/{{ room.code }}/playlist">
+                <input type="hidden" name="player" value="{{ player }}">
+                <h2>Importer la playlist</h2>
+                <label for="playlist_url">Lien playlist Deezer</label>
+                <input id="playlist_url" name="playlist_url" type="url" required
+                       placeholder="https://www.deezer.com/fr/playlist/1234567890">
+                <button type="submit">Importer</button>
+            </form>
+            {% elif track_count > 0 %}
+            <div class="card room-panel">
+                <h2>Playlist prête</h2>
+                <p class="note">{{ track_count }} morceaux prêts à jouer.</p>
+                {% if is_host %}
+                <form method="post" action="/rooms/{{ room.code }}/start">
+                    <input type="hidden" name="player" value="{{ player }}">
+                    <button type="submit">Démarrer la partie</button>
+                </form>
+                {% endif %}
+            </div>
+            {% endif %}
 
-    <section class="card">
-        <h2>Joueurs</h2>
-        <ul id="players-list">
-            {% for p in players %}
-            <li>{{ p.nickname }} — {{ p.score }} pt(s)</li>
-            {% endfor %}
-        </ul>
+            <section class="card room-panel">
+                <h2>Joueurs</h2>
+                <ul id="players-list">
+                    {% for p in players %}
+                    <li>{{ p.nickname }} — {{ p.score }} pt(s)</li>
+                    {% endfor %}
+                </ul>
+            </section>
+        </div>
+    </section>
+
+    <section id="game-view" class="card game-card" {% if room.status != 'playing' %}hidden{% endif %}>
+        <p class="note" id="game-progress">Morceau {{ played }}/{{ total }}</p>
+
+        <audio id="game-audio" preload="auto" {% if round_info %}src="{{ round_info.preview_url }}"{% endif %}></audio>
+        <button id="audio-unlock" type="button" {% if not round_info %}hidden{% endif %}>Lancer l'extrait</button>
+
+        <button id="buzz-button" class="buzz-button" type="button"
+                {% if not round_info or round_info.locked_by or round_info.revealed %}disabled{% endif %}>
+            BUZZ
+        </button>
+
+        <p class="note" id="buzz-status" {% if not round_info or not round_info.locked_by or round_info.revealed %}hidden{% endif %}>
+            {% if round_info and round_info.locked_by %}
+                {% if round_info.locked_by == player %}À toi de répondre !{% else %}{{ round_info.locked_by }} a buzzé...{% endif %}
+            {% endif %}
+        </p>
+
+        <form id="answer-form" class="answer-form"
+              {% if not round_info or round_info.locked_by != player or round_info.revealed %}hidden{% endif %}>
+            <label for="answer-input">Titre ou artiste ?</label>
+            <input id="answer-input" maxlength="80" autocomplete="off" required>
+            <button id="answer-submit" type="submit">Valider</button>
+        </form>
+
+        <p class="note" id="round-result" {% if not round_info or not round_info.revealed %}hidden{% endif %}>
+            {% if round_info and round_info.revealed %}
+            {% if round_info.correct %}Bonne réponse !{% else %}Raté...{% endif %}
+            — <span class="note--em">{{ round_info.title }} · {{ round_info.artist }}</span>
+            {% endif %}
+        </p>
+
+        {% if is_host %}
+        <button id="next-round-button" class="next-button" type="button"
+                {% if not round_info or not round_info.revealed %}hidden{% endif %}>
+            Morceau suivant
+        </button>
+        {% endif %}
+    </section>
+
+    <section id="finished-view" class="card" {% if room.status != 'finished' %}hidden{% endif %}>
+        <h2>Partie terminée</h2>
+        <p class="note">Tous les morceaux ont été joués.</p>
     </section>
     {% endif %}
 </main>

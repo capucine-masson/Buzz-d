@@ -4,13 +4,16 @@ from urllib.parse import urlencode
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Form, Request, WebSocket, WebSocketDisconnect
-from fastapi.responses import RedirectResponse
+from fastapi.responses import JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
 import deezer
 import game
+import groq_client
+import validation
 from database import get_connection, init_db
+from round_state import rounds
 from ws_manager import manager
 
 load_dotenv()
@@ -106,10 +109,12 @@ async def room_page(request: Request, code: str, player: str = "", error: str = 
             return _redirect("/", error="Room introuvable")
         players = game.list_players(conn, room_code)
         track_count = game.count_tracks(conn, room_code)
+        played, total = game.progress(conn, room_code)
     finally:
         conn.close()
 
     is_host = bool(player) and player == room["host_nickname"]
+    round_info = rounds.get(room_code)
     return templates.TemplateResponse(
         request,
         "room.html",
@@ -119,6 +124,9 @@ async def room_page(request: Request, code: str, player: str = "", error: str = 
             "player": player,
             "is_host": is_host,
             "track_count": track_count,
+            "played": played,
+            "total": total,
+            "round_info": round_info,
             "error": error,
             "loaded": loaded,
         },
@@ -156,6 +164,100 @@ async def set_playlist(code: str, playlist_url: str = Form(...), player: str = F
 
     await manager.broadcast(room_code, {"type": "playlist_loaded", "track_count": len(tracks)})
     return _redirect(f"/room/{room_code}", player=player, loaded=str(len(tracks)))
+
+
+@app.post("/rooms/{code}/start")
+async def start_round(code: str, player: str = Form(...)):
+    room_code = code.strip().upper()
+    conn = get_connection()
+    try:
+        room = game.get_room(conn, room_code)
+        if room is None:
+            conn.close()
+            return _redirect("/", error="Room introuvable")
+
+        if player != room["host_nickname"]:
+            conn.close()
+            return _redirect(
+                f"/room/{room_code}", player=player, error="Seul l'hôte peut lancer la manche"
+            )
+
+        track = game.get_random_unplayed_track(conn, room_code)
+        if track is None:
+            game.set_room_status(conn, room_code, "finished")
+            conn.close()
+            rounds.clear(room_code)
+            await manager.broadcast(room_code, {"type": "game_over"})
+            return _redirect(f"/room/{room_code}", player=player)
+
+        game.mark_track_played(conn, track["id"])
+        game.set_room_status(conn, room_code, "playing")
+        played, total = game.progress(conn, room_code)
+        track_data = dict(track)
+    finally:
+        conn.close()
+
+    rounds.start_round(room_code, track_data)
+    await manager.broadcast(
+        room_code,
+        {
+            "type": "round_start",
+            "preview_url": track_data["preview_url"],
+            "played": played,
+            "total": total,
+        },
+    )
+    return _redirect(f"/room/{room_code}", player=player)
+
+
+@app.post("/rooms/{code}/buzz")
+async def buzz(code: str, player: str = Form(...)):
+    room_code = code.strip().upper()
+
+    conn = get_connection()
+    try:
+        if not game.player_exists(conn, room_code, player):
+            return JSONResponse({"locked": False, "reason": "unknown_player"}, status_code=403)
+    finally:
+        conn.close()
+
+    locked = await rounds.try_buzz(room_code, player)
+    if locked:
+        await manager.broadcast(room_code, {"type": "buzz_locked", "locked_by": player})
+    return JSONResponse({"locked": locked})
+
+
+@app.post("/rooms/{code}/answer")
+async def submit_answer(code: str, player: str = Form(...), answer_text: str = Form(...)):
+    room_code = code.strip().upper()
+    round_info = rounds.get(room_code)
+
+    if round_info is None or round_info["locked_by"] != player or round_info["revealed"]:
+        return JSONResponse({"error": "invalid_state"}, status_code=409)
+
+    title = round_info["title"]
+    artist = round_info["artist"]
+
+    correct = validation.exact_match(answer_text, title, artist)
+    if not correct:
+        correct = await groq_client.judge_answer(answer_text, title, artist)
+
+    revealed = await rounds.reveal(room_code, correct, answer_text)
+    if revealed is None:
+        return JSONResponse({"error": "already_revealed"}, status_code=409)
+
+    await manager.broadcast(
+        room_code,
+        {
+            "type": "round_result",
+            "correct": correct,
+            "title": title,
+            "artist": artist,
+            "answered_by": player,
+            "answer_text": answer_text,
+        },
+    )
+    return JSONResponse({"correct": correct, "title": title, "artist": artist})
 
 
 @app.websocket("/ws/{room_code}")

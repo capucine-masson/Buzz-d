@@ -1,7 +1,8 @@
+import os
 import sqlite3
 from pathlib import Path
 
-DB_PATH = Path(__file__).parent / "buzzd.db"
+DB_PATH = Path(os.environ.get("BUZZD_DB_PATH", Path(__file__).parent / "buzzd.db"))
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS rooms (

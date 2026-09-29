@@ -41,10 +41,9 @@ body {
     transition: background 0.3s ease, color 0.3s ease;
 }
 
-.theme-toggle {
+.icon-button {
     position: fixed;
     top: 1rem;
-    right: 1rem;
     z-index: 10;
     width: 2.5rem;
     height: 2.5rem;
@@ -59,10 +58,19 @@ body {
     align-items: center;
     justify-content: center;
     box-shadow: 0 4px 12px var(--card-shadow);
+    text-decoration: none;
 }
 
-.theme-toggle:hover {
+.icon-button:hover {
     filter: brightness(1.1);
+}
+
+.icon-button--home {
+    left: 1rem;
+}
+
+.theme-toggle {
+    right: 1rem;
 }
 
 .brand-title {
@@ -75,16 +83,76 @@ body {
 .page {
     max-width: 720px;
     margin: 0 auto;
-    padding: 3rem 1.5rem;
+    padding: 3.5rem 1.5rem 1.5rem;
     display: flex;
     flex-direction: column;
     align-items: center;
     text-align: center;
-    gap: 1rem;
+    gap: 0.75rem;
 }
 
 .page--home {
     max-width: 920px;
+}
+
+.page--room {
+    padding-top: 3rem;
+    gap: 0.5rem;
+    max-width: 960px;
+}
+
+.room-code {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.room-code__value {
+    font-family: var(--font-title);
+    font-size: 2.25rem;
+    letter-spacing: 0.08em;
+    color: var(--text-color);
+}
+
+.icon-button-inline {
+    width: 2rem;
+    height: 2rem;
+    border-radius: 50%;
+    border: 1px solid var(--input-border);
+    background: var(--card-bg);
+    color: var(--text-color);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.icon-button-inline:hover {
+    filter: brightness(1.1);
+}
+
+.icon-button-inline.is-copied {
+    color: var(--color-green);
+    border-color: var(--color-green);
+}
+
+.note--compact {
+    padding: 0.35rem 0.9rem;
+}
+
+.room-panels {
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: stretch;
+    gap: 1.25rem;
+}
+
+.room-panels .room-panel {
+    flex: 1 1 300px;
+    max-width: 380px;
 }
 
 .home-forms {
@@ -140,11 +208,11 @@ body {
     max-width: 420px;
     background: var(--card-bg);
     border-radius: 16px;
-    padding: 1.5rem;
+    padding: 1.25rem;
     box-shadow: 0 8px 24px var(--card-shadow);
     display: flex;
     flex-direction: column;
-    gap: 0.75rem;
+    gap: 0.6rem;
     text-align: left;
 }
 
@@ -198,4 +266,70 @@ body {
     background: var(--list-item-bg);
     border-radius: 8px;
     padding: 0.5rem 0.75rem;
+}
+
+.game-card {
+    align-items: center;
+    gap: 1.25rem;
+    text-align: center;
+}
+
+.buzz-button {
+    width: 160px;
+    height: 160px;
+    border-radius: 50%;
+    border: none;
+    background: var(--color-green);
+    color: var(--color-white);
+    font-family: var(--font-title);
+    font-size: 1.8rem;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    box-shadow: 0 8px 24px var(--card-shadow);
+    transition: transform 0.15s ease, filter 0.15s ease;
+}
+
+.buzz-button:hover:not(:disabled) {
+    filter: brightness(1.1);
+    transform: scale(1.03);
+}
+
+.buzz-button:active:not(:disabled) {
+    transform: scale(0.97);
+}
+
+.buzz-button:disabled {
+    background: var(--input-border);
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+.answer-form {
+    width: 100%;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    text-align: left;
+}
+
+.note--em {
+    font-weight: bold;
+}
+
+#audio-unlock,
+.next-button {
+    font-family: var(--font-title);
+    font-size: 1.1rem;
+    letter-spacing: 0.03em;
+    background: var(--color-dark);
+    color: var(--color-white);
+    border: none;
+    border-radius: 999px;
+    padding: 0.6rem 1.2rem;
+    cursor: pointer;
+}
+
+#audio-unlock:hover,
+.next-button:hover {
+    filter: brightness(1.15);
 }

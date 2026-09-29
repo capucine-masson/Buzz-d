@@ -64,3 +64,35 @@ def save_tracks(conn: sqlite3.Connection, code: str, tracks: list[dict]) -> None
 def count_tracks(conn: sqlite3.Connection, code: str) -> int:
     row = conn.execute("SELECT COUNT(*) AS total FROM tracks WHERE room_code = ?", (code,)).fetchone()
     return row["total"] if row else 0
+
+
+def player_exists(conn: sqlite3.Connection, code: str, nickname: str) -> bool:
+    row = conn.execute(
+        "SELECT 1 FROM players WHERE room_code = ? AND nickname = ?", (code, nickname)
+    ).fetchone()
+    return row is not None
+
+
+def get_random_unplayed_track(conn: sqlite3.Connection, code: str) -> sqlite3.Row | None:
+    return conn.execute(
+        "SELECT * FROM tracks WHERE room_code = ? AND played = 0 ORDER BY RANDOM() LIMIT 1",
+        (code,),
+    ).fetchone()
+
+
+def mark_track_played(conn: sqlite3.Connection, track_id: int) -> None:
+    conn.execute("UPDATE tracks SET played = 1 WHERE id = ?", (track_id,))
+    conn.commit()
+
+
+def set_room_status(conn: sqlite3.Connection, code: str, status: str) -> None:
+    conn.execute("UPDATE rooms SET status = ? WHERE code = ?", (status, code))
+    conn.commit()
+
+
+def progress(conn: sqlite3.Connection, code: str) -> tuple[int, int]:
+    total = count_tracks(conn, code)
+    played_row = conn.execute(
+        "SELECT COUNT(*) AS played FROM tracks WHERE room_code = ? AND played = 1", (code,)
+    ).fetchone()
+    return played_row["played"], total
