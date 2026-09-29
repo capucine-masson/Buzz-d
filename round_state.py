@@ -19,8 +19,10 @@ class RoundManager:
             "preview_url": track["preview_url"],
             "locked_by": None,
             "revealed": False,
-            "correct": None,
-            "answer_text": None,
+            "title_correct": None,
+            "artist_correct": None,
+            "title_answer": None,
+            "artist_answer": None,
         }
 
     def get(self, room_code: str) -> dict | None:
@@ -35,15 +37,24 @@ class RoundManager:
             round_["locked_by"] = nickname
             return True
 
-    async def reveal(self, room_code: str, correct: bool, answer_text: str) -> dict | None:
+    async def reveal(
+        self,
+        room_code: str,
+        title_correct: bool,
+        artist_correct: bool,
+        title_answer: str,
+        artist_answer: str,
+    ) -> dict | None:
         """Marque la manche comme révélée. Retourne None si déjà révélée (protège du double traitement)."""
         async with self._lock(room_code):
             round_ = self._rounds.get(room_code)
             if round_ is None or round_["revealed"]:
                 return None
             round_["revealed"] = True
-            round_["correct"] = correct
-            round_["answer_text"] = answer_text
+            round_["title_correct"] = title_correct
+            round_["artist_correct"] = artist_correct
+            round_["title_answer"] = title_answer
+            round_["artist_answer"] = artist_answer
             return round_
 
     def clear(self, room_code: str) -> None:

@@ -228,7 +228,12 @@ async def buzz(code: str, player: str = Form(...)):
 
 
 @app.post("/rooms/{code}/answer")
-async def submit_answer(code: str, player: str = Form(...), answer_text: str = Form(...)):
+async def submit_answer(
+    code: str,
+    player: str = Form(...),
+    title_answer: str = Form(""),
+    artist_answer: str = Form(""),
+):
     room_code = code.strip().upper()
     round_info = rounds.get(room_code)
 
@@ -238,26 +243,50 @@ async def submit_answer(code: str, player: str = Form(...), answer_text: str = F
     title = round_info["title"]
     artist = round_info["artist"]
 
-    correct = validation.exact_match(answer_text, title, artist)
-    if not correct:
-        correct = await groq_client.judge_answer(answer_text, title, artist)
+    title_correct = validation.exact_match_single(title_answer, title)
+    if not title_correct and title_answer.strip():
+        title_correct = await groq_client.judge_field(title_answer, "title", title, artist)
 
-    revealed = await rounds.reveal(room_code, correct, answer_text)
+    artist_correct = validation.exact_match_single(artist_answer, artist)
+    if not artist_correct and artist_answer.strip():
+        artist_correct = await groq_client.judge_field(artist_answer, "artist", title, artist)
+
+    revealed = await rounds.reveal(room_code, title_correct, artist_correct, title_answer, artist_answer)
     if revealed is None:
         return JSONResponse({"error": "already_revealed"}, status_code=409)
+
+    points_earned = int(title_correct) + int(artist_correct)
+
+    if points_earned > 0:
+        conn = get_connection()
+        try:
+            conn.execute(
+                "UPDATE players SET score = score + ? WHERE room_code = ? AND nickname = ?",
+                (points_earned, room_code, player),
+            )
+            conn.commit()
+            players = game.list_players(conn, room_code)
+        finally:
+            conn.close()
+        await manager.broadcast(
+            room_code, {"type": "players_update", "players": [dict(p) for p in players]}
+        )
 
     await manager.broadcast(
         room_code,
         {
             "type": "round_result",
-            "correct": correct,
+            "title_correct": title_correct,
+            "artist_correct": artist_correct,
+            "points_earned": points_earned,
             "title": title,
             "artist": artist,
             "answered_by": player,
-            "answer_text": answer_text,
         },
     )
-    return JSONResponse({"correct": correct, "title": title, "artist": artist})
+    return JSONResponse(
+        {"title_correct": title_correct, "artist_correct": artist_correct, "points_earned": points_earned}
+    )
 
 
 @app.websocket("/ws/{room_code}")

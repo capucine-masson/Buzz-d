@@ -8,15 +8,18 @@
       data-player="{{ player }}"
       data-is-host="{{ '1' if is_host else '' }}"
       data-room-status="{{ room.status }}">
-    <p class="lead">Voici le code à partager à tes potes :</p>
-    <div class="room-code">
-        <span class="room-code__value" id="room-code-value">{{ room.code }}</span>
-        <button type="button" class="icon-button-inline" id="copy-code-btn" aria-label="Copier le code">
-            <svg id="copy-code-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <rect x="9" y="9" width="12" height="12" rx="2"></rect>
-                <path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"></path>
-            </svg>
-        </button>
+    <div id="room-code-panel" {% if room.status != 'lobby' %}hidden{% endif %}>
+        <p class="lead">Voici le code à partager à tes potes :</p>
+        <div class="room-code">
+            <span class="room-code__spacer" aria-hidden="true"></span>
+            <span class="room-code__value" id="room-code-value">{{ room.code }}</span>
+            <button type="button" class="icon-button-inline" id="copy-code-btn" aria-label="Copier le code">
+                <svg id="copy-code-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <rect x="9" y="9" width="12" height="12" rx="2"></rect>
+                    <path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"></path>
+                </svg>
+            </button>
+        </div>
     </div>
 
     {% if error %}
@@ -34,7 +37,9 @@
         <button type="submit">Rejoindre</button>
     </form>
     {% else %}
-    <p class="note note--compact">Connecté en tant que <strong>{{ player }}</strong>{% if is_host %} (hôte){% endif %}</p>
+    <p class="lead" id="player-status-note" {% if room.status != 'lobby' %}hidden{% endif %}>
+        Connecté en tant que <strong>{{ player }}</strong>{% if is_host %} (hôte){% endif %}
+    </p>
 
     <section id="lobby-view" {% if room.status != 'lobby' %}hidden{% endif %}>
         <div class="room-panels">
@@ -75,7 +80,8 @@
         <p class="note" id="game-progress">Morceau {{ played }}/{{ total }}</p>
 
         <audio id="game-audio" preload="auto" {% if round_info %}src="{{ round_info.preview_url }}"{% endif %}></audio>
-        <button id="audio-unlock" type="button" {% if not round_info %}hidden{% endif %}>Lancer l'extrait</button>
+        <button id="play-pause-button" class="play-pause-button" type="button"
+                aria-label="Lecture / pause" {% if not round_info %}disabled{% endif %}>▶</button>
 
         <button id="buzz-button" class="buzz-button" type="button"
                 {% if not round_info or round_info.locked_by or round_info.revealed %}disabled{% endif %}>
@@ -90,17 +96,23 @@
 
         <form id="answer-form" class="answer-form"
               {% if not round_info or round_info.locked_by != player or round_info.revealed %}hidden{% endif %}>
-            <label for="answer-input">Titre ou artiste ?</label>
-            <input id="answer-input" maxlength="80" autocomplete="off" required>
-            <button id="answer-submit" type="submit">Valider</button>
+            <label for="title-answer-input">Titre</label>
+            <input id="title-answer-input" maxlength="80" autocomplete="off" placeholder="Titre du morceau">
+            <label for="artist-answer-input">Artiste</label>
+            <input id="artist-answer-input" maxlength="80" autocomplete="off" placeholder="Nom de l'artiste">
+            <button id="answer-submit" type="submit">Valider (1 pt/champ)</button>
         </form>
 
-        <p class="note" id="round-result" {% if not round_info or not round_info.revealed %}hidden{% endif %}>
+        <div class="note round-result" id="round-result" {% if not round_info or not round_info.revealed %}hidden{% endif %}>
             {% if round_info and round_info.revealed %}
-            {% if round_info.correct %}Bonne réponse !{% else %}Raté...{% endif %}
-            — <span class="note--em">{{ round_info.title }} · {{ round_info.artist }}</span>
+            <p class="result-line {{ 'is-correct' if round_info.title_correct else 'is-wrong' }}">
+                Titre {{ '✓' if round_info.title_correct else '✗' }} — <span class="note--em">{{ round_info.title }}</span>
+            </p>
+            <p class="result-line {{ 'is-correct' if round_info.artist_correct else 'is-wrong' }}">
+                Artiste {{ '✓' if round_info.artist_correct else '✗' }} — <span class="note--em">{{ round_info.artist }}</span>
+            </p>
             {% endif %}
-        </p>
+        </div>
 
         {% if is_host %}
         <button id="next-round-button" class="next-button" type="button"

@@ -33,17 +33,20 @@
         });
     }
 
+    const roomCodePanel = document.getElementById("room-code-panel");
+    const playerStatusNote = document.getElementById("player-status-note");
     const playersList = document.getElementById("players-list");
     const lobbyView = document.getElementById("lobby-view");
     const gameView = document.getElementById("game-view");
     const finishedView = document.getElementById("finished-view");
     const gameProgress = document.getElementById("game-progress");
     const gameAudio = document.getElementById("game-audio");
-    const audioUnlock = document.getElementById("audio-unlock");
+    const playPauseButton = document.getElementById("play-pause-button");
     const buzzButton = document.getElementById("buzz-button");
     const buzzStatus = document.getElementById("buzz-status");
     const answerForm = document.getElementById("answer-form");
-    const answerInput = document.getElementById("answer-input");
+    const titleAnswerInput = document.getElementById("title-answer-input");
+    const artistAnswerInput = document.getElementById("artist-answer-input");
     const answerSubmit = document.getElementById("answer-submit");
     const roundResult = document.getElementById("round-result");
     const nextRoundButton = document.getElementById("next-round-button");
@@ -80,23 +83,53 @@
         }
         const playPromise = gameAudio.play();
         if (playPromise && typeof playPromise.catch === "function") {
-            playPromise.catch(() => {
-                if (audioUnlock) {
-                    audioUnlock.hidden = false;
-                }
-            });
+            // Autoplay bloqué par le navigateur : l'icône play/pause reste sur "▶"
+            // (elle reflète l'état réel de la lecture via les events play/pause),
+            // il suffit alors d'appuyer dessus pour démarrer manuellement.
+            playPromise.catch(() => {});
         }
+    }
+
+    function updatePlayPauseIcon() {
+        if (!playPauseButton || !gameAudio) {
+            return;
+        }
+        playPauseButton.textContent = gameAudio.paused ? "▶" : "⏸";
+    }
+
+    if (gameAudio) {
+        gameAudio.addEventListener("play", updatePlayPauseIcon);
+        gameAudio.addEventListener("pause", updatePlayPauseIcon);
+    }
+
+    if (playPauseButton) {
+        playPauseButton.addEventListener("click", () => {
+            if (!gameAudio) {
+                return;
+            }
+            if (gameAudio.paused) {
+                gameAudio.play().catch(() => {});
+            } else {
+                gameAudio.pause();
+            }
+        });
     }
 
     function startRound(data) {
         showView(gameView);
+        if (roomCodePanel) {
+            roomCodePanel.hidden = true;
+        }
+        if (playerStatusNote) {
+            playerStatusNote.hidden = true;
+        }
         setText(gameProgress, `Morceau ${data.played}/${data.total}`);
 
         if (gameAudio) {
             gameAudio.src = data.preview_url;
         }
-        if (audioUnlock) {
-            audioUnlock.hidden = true;
+        if (playPauseButton) {
+            playPauseButton.disabled = false;
         }
         tryAutoplay();
 
@@ -110,10 +143,12 @@
         if (answerForm) {
             answerForm.hidden = true;
         }
-        if (answerInput) {
-            answerInput.value = "";
-            answerInput.disabled = false;
-        }
+        [titleAnswerInput, artistAnswerInput].forEach((input) => {
+            if (input) {
+                input.value = "";
+                input.disabled = false;
+            }
+        });
         if (answerSubmit) {
             answerSubmit.disabled = false;
         }
@@ -137,10 +172,26 @@
         }
         if (answerForm) {
             answerForm.hidden = lockedBy !== player;
-            if (lockedBy === player && answerInput) {
-                answerInput.focus();
+            if (lockedBy === player && titleAnswerInput) {
+                titleAnswerInput.focus();
             }
         }
+    }
+
+    function resultLine(label, correct, value) {
+        const p = document.createElement("p");
+        p.className = `result-line ${correct ? "is-correct" : "is-wrong"}`;
+
+        const prefix = document.createElement("span");
+        prefix.textContent = `${label} ${correct ? "✓" : "✗"} — `;
+        p.appendChild(prefix);
+
+        const details = document.createElement("span");
+        details.className = "note--em";
+        details.textContent = value;
+        p.appendChild(details);
+
+        return p;
     }
 
     function showResult(data) {
@@ -153,15 +204,8 @@
         if (roundResult) {
             roundResult.hidden = false;
             roundResult.textContent = "";
-
-            const verdict = document.createElement("span");
-            verdict.textContent = data.correct ? "Bonne réponse !" : "Raté...";
-            roundResult.appendChild(verdict);
-
-            const details = document.createElement("span");
-            details.className = "note--em";
-            details.textContent = ` — ${data.title} · ${data.artist}`;
-            roundResult.appendChild(details);
+            roundResult.appendChild(resultLine("Titre", data.title_correct, data.title));
+            roundResult.appendChild(resultLine("Artiste", data.artist_correct, data.artist));
         }
         if (isHost && nextRoundButton) {
             nextRoundButton.hidden = false;
@@ -170,6 +214,12 @@
 
     function gameOver() {
         showView(finishedView);
+        if (roomCodePanel) {
+            roomCodePanel.hidden = true;
+        }
+        if (playerStatusNote) {
+            playerStatusNote.hidden = true;
+        }
     }
 
     if (buzzButton) {
@@ -202,24 +252,37 @@
     if (answerForm) {
         answerForm.addEventListener("submit", async (event) => {
             event.preventDefault();
-            const answerText = answerInput.value.trim();
-            if (!answerText) {
+            const titleAnswer = titleAnswerInput ? titleAnswerInput.value.trim() : "";
+            const artistAnswer = artistAnswerInput ? artistAnswerInput.value.trim() : "";
+            if (!titleAnswer && !artistAnswer) {
                 return;
             }
             // Désactive pendant l'appel (validation Groq potentielle) pour éviter
             // un double-clic qui déclencherait deux appels/coûts pour la même réponse.
             answerSubmit.disabled = true;
-            answerInput.disabled = true;
+            [titleAnswerInput, artistAnswerInput].forEach((input) => {
+                if (input) {
+                    input.disabled = true;
+                }
+            });
             try {
                 await fetch(`/rooms/${roomCode}/answer`, {
                     method: "POST",
                     headers: { "Content-Type": "application/x-www-form-urlencoded" },
-                    body: new URLSearchParams({ player, answer_text: answerText }),
+                    body: new URLSearchParams({
+                        player,
+                        title_answer: titleAnswer,
+                        artist_answer: artistAnswer,
+                    }),
                 });
                 // Le résultat officiel arrive à tout le monde via "round_result".
             } catch (err) {
                 answerSubmit.disabled = false;
-                answerInput.disabled = false;
+                [titleAnswerInput, artistAnswerInput].forEach((input) => {
+                    if (input) {
+                        input.disabled = false;
+                    }
+                });
             }
         });
     }
@@ -284,6 +347,7 @@
 
     // Au chargement (ou après un rafraîchissement en pleine manche), tente de
     // lancer l'extrait déjà rendu côté serveur.
+    updatePlayPauseIcon();
     if (main.dataset.roomStatus === "playing" && gameAudio && gameAudio.getAttribute("src")) {
         tryAutoplay();
     }

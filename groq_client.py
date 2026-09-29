@@ -10,18 +10,22 @@ _TIMEOUT = 8.0
 _SYSTEM_PROMPT = "Tu juges des réponses de blind test musical. Réponds uniquement en JSON strict."
 
 
-async def judge_answer(guess: str, title: str, artist: str) -> bool:
-    """Demande à Groq si la réponse est équivalente au titre/artiste réel. Échoue "fermé" (False) en cas de souci."""
+async def judge_field(guess: str, field: str, title: str, artist: str) -> bool:
+    """Demande à Groq si la réponse est équivalente au titre OU à l'artiste réel (selon `field`).
+    Échoue "fermé" (False) en cas de souci (pas de clé, timeout, erreur réseau)."""
     api_key = os.environ.get("GROQ_API_KEY", "").strip()
     if not api_key:
         return False
 
+    field_label = "titre" if field == "title" else "artiste"
+    target = title if field == "title" else artist
+
     user_prompt = (
-        f'Réponse du joueur : "{guess}"\n'
-        f'Titre réel : "{title}"\n'
-        f'Artiste réel : "{artist}"\n'
-        "Le joueur a-t-il donné une réponse équivalente au titre OU à l'artiste "
-        "(faute de frappe, surnom d'artiste, orthographe approximative) ? "
+        f'Dans un blind test musical, le morceau joué est "{title}" par "{artist}".\n'
+        f'Le joueur devait deviner le {field_label}, sa réponse pour ce champ est : "{guess}"\n'
+        f'Le vrai {field_label} est : "{target}"\n'
+        "Est-ce une réponse équivalente (faute de frappe, surnom d'artiste, orthographe "
+        "approximative, article/featuring omis) ? "
         'Réponds uniquement par ce JSON : {"correct": true} ou {"correct": false}.'
     )
 

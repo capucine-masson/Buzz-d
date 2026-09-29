@@ -14,8 +14,8 @@ def normalize(text: str) -> str:
     return _WHITESPACE_RE.sub(" ", without_punctuation).strip()
 
 
-def exact_match(guess: str, title: str, artist: str) -> bool:
+def exact_match_single(guess: str, target: str) -> bool:
     normalized_guess = normalize(guess)
     if not normalized_guess:
         return False
-    return normalized_guess == normalize(title) or normalized_guess == normalize(artist)
+    return normalized_guess == normalize(target)
