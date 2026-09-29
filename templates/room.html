@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+
+{% block title %}Room {{ room.code }} — Buzz'd{% endblock %}
+
+{% block content %}
+<main class="page page--room" data-room-code="{{ room.code }}">
+    <h1 class="brand-title">{{ room.code }}</h1>
+    <p class="note">Partage ce code à tes potes pour qu'ils rejoignent.</p>
+
+    {% if error %}
+    <p class="note note--error note--flash">{{ error }}</p>
+    {% endif %}
+    {% if loaded %}
+    <p class="note note--flash">{{ loaded }} morceaux chargés !</p>
+    {% endif %}
+
+    {% if not player %}
+    <form class="card" method="post" action="/join">
+        <input type="hidden" name="code" value="{{ room.code }}">
+        <label for="nickname">Ton pseudo</label>
+        <input id="nickname" name="nickname" maxlength="20" required autofocus>
+        <button type="submit">Rejoindre</button>
+    </form>
+    {% else %}
+    <p class="note">Connecté en tant que <strong>{{ player }}</strong>{% if is_host %} (hôte){% endif %}</p>
+
+    {% if is_host and track_count == 0 %}
+    <form class="card" method="post" action="/rooms/{{ room.code }}/playlist">
+        <input type="hidden" name="player" value="{{ player }}">
+        <h2>Importer la playlist</h2>
+        <label for="playlist_url">Lien playlist Deezer</label>
+        <input id="playlist_url" name="playlist_url" type="url" required
+               placeholder="https://www.deezer.com/fr/playlist/1234567890">
+        <button type="submit">Importer</button>
+    </form>
+    {% elif track_count > 0 %}
+    <p class="note">{{ track_count }} morceaux prêts à jouer.</p>
+    {% endif %}
+
+    <section class="card">
+        <h2>Joueurs</h2>
+        <ul id="players-list">
+            {% for p in players %}
+            <li>{{ p.nickname }} — {{ p.score }} pt(s)</li>
+            {% endfor %}
+        </ul>
+    </section>
+    {% endif %}
+</main>
+<script src="/static/js/room.js"></script>
+{% endblock %}

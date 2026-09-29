@@ -5,6 +5,28 @@
 {% block content %}
 <main class="page page--home">
     <h1 class="brand-title">Buzz'd</h1>
-    <p class="note">V0 — squelette en place. WebSocket, base SQLite et .env prêts.</p>
+    <p class="lead">Blind test multijoueur en live sur vos playlists Deezer.</p>
+
+    {% if error %}
+    <p class="note note--error note--flash">{{ error }}</p>
+    {% endif %}
+
+    <div class="home-forms">
+        <form class="card" method="post" action="/rooms">
+            <h2>Créer une partie</h2>
+            <label for="host_nickname">Ton pseudo</label>
+            <input id="host_nickname" name="nickname" maxlength="20" required autofocus>
+            <button type="submit">Créer la room</button>
+        </form>
+
+        <form class="card" method="post" action="/join">
+            <h2>Rejoindre une partie</h2>
+            <label for="join_code">Code de la room</label>
+            <input id="join_code" name="code" maxlength="5" required style="text-transform:uppercase">
+            <label for="join_nickname">Ton pseudo</label>
+            <input id="join_nickname" name="nickname" maxlength="20" required>
+            <button type="submit">Rejoindre</button>
+        </form>
+    </div>
 </main>
 {% endblock %}

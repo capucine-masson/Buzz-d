@@ -5,9 +5,27 @@
     --color-green: #1A9E27;
     --color-dark: #103536;
 
+    --bg-gradient-start: var(--color-mist);
+    --bg-gradient-end: var(--color-aqua);
+    --text-color: var(--color-dark);
+    --card-bg: var(--color-white);
+    --card-shadow: rgba(16, 53, 54, 0.15);
+    --input-border: var(--color-aqua);
+    --list-item-bg: var(--color-mist);
+
     --font-title: "Bahiana", cursive;
     --font-body: "Bellota Text", sans-serif;
     --font-note: "Anonymous Pro", monospace;
+}
+
+:root[data-theme="dark"] {
+    --bg-gradient-start: #0a2223;
+    --bg-gradient-end: var(--color-dark);
+    --text-color: var(--color-mist);
+    --card-bg: #16474a;
+    --card-shadow: rgba(0, 0, 0, 0.4);
+    --input-border: var(--color-green);
+    --list-item-bg: #0a2223;
 }
 
 * {
@@ -17,14 +35,39 @@
 body {
     margin: 0;
     min-height: 100vh;
-    background: linear-gradient(160deg, var(--color-mist) 0%, var(--color-aqua) 100%);
-    color: var(--color-dark);
+    background: linear-gradient(160deg, var(--bg-gradient-start) 0%, var(--bg-gradient-end) 100%);
+    color: var(--text-color);
     font-family: var(--font-body);
+    transition: background 0.3s ease, color 0.3s ease;
+}
+
+.theme-toggle {
+    position: fixed;
+    top: 1rem;
+    right: 1rem;
+    z-index: 10;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 50%;
+    border: 1px solid var(--input-border);
+    background: var(--card-bg);
+    color: var(--text-color);
+    font-size: 1.2rem;
+    line-height: 1;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px var(--card-shadow);
+}
+
+.theme-toggle:hover {
+    filter: brightness(1.1);
 }
 
 .brand-title {
     font-family: var(--font-title);
-    color: var(--color-dark);
+    color: var(--text-color);
     font-size: 4rem;
     margin: 0;
 }
@@ -40,11 +83,119 @@ body {
     gap: 1rem;
 }
 
+.page--home {
+    max-width: 920px;
+}
+
+.home-forms {
+    width: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: stretch;
+    gap: 1.5rem;
+}
+
+.home-forms .card {
+    flex: 1 1 320px;
+    justify-content: flex-start;
+}
+
+.home-forms .card button {
+    margin-top: auto;
+}
+
+.lead {
+    font-family: var(--font-note);
+    color: var(--text-color);
+    opacity: 0.8;
+    margin: 0;
+}
+
 .note {
     font-family: var(--font-note);
-    color: var(--color-dark);
-    background: var(--color-white);
+    color: var(--text-color);
+    background: var(--card-bg);
     border: 1px solid var(--color-green);
     border-radius: 8px;
     padding: 0.5rem 1rem;
+}
+
+.note--error {
+    border-color: #c0392b;
+    color: #c0392b;
+}
+
+.note--flash {
+    transition: opacity 0.4s ease, transform 0.4s ease;
+}
+
+.note--flash.note--fade-out {
+    opacity: 0;
+    transform: translateY(-6px);
+}
+
+.card {
+    width: 100%;
+    max-width: 420px;
+    background: var(--card-bg);
+    border-radius: 16px;
+    padding: 1.5rem;
+    box-shadow: 0 8px 24px var(--card-shadow);
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+    text-align: left;
+}
+
+.card h2 {
+    margin: 0;
+    font-family: var(--font-title);
+    color: var(--text-color);
+    font-size: 1.5rem;
+}
+
+.card label {
+    font-weight: bold;
+}
+
+.card input {
+    font-family: var(--font-body);
+    font-size: 1rem;
+    padding: 0.6rem;
+    border: 1px solid var(--input-border);
+    border-radius: 8px;
+    background: var(--card-bg);
+    color: var(--text-color);
+}
+
+.card button {
+    font-family: var(--font-title);
+    font-size: 1.1rem;
+    letter-spacing: 0.03em;
+    background: var(--color-green);
+    color: var(--color-white);
+    border: none;
+    border-radius: 999px;
+    padding: 0.7rem 1.2rem;
+    cursor: pointer;
+}
+
+.card button:hover {
+    filter: brightness(1.1);
+}
+
+#players-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+}
+
+#players-list li {
+    background: var(--list-item-bg);
+    border-radius: 8px;
+    padding: 0.5rem 0.75rem;
 }

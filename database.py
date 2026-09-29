@@ -6,6 +6,7 @@ DB_PATH = Path(__file__).parent / "buzzd.db"
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS rooms (
     code TEXT PRIMARY KEY,
+    host_nickname TEXT NOT NULL,
     playlist_url TEXT,
     status TEXT NOT NULL DEFAULT 'lobby',
     current_track_index INTEGER NOT NULL DEFAULT -1,
