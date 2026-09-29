@@ -4,27 +4,23 @@
 
 {% block content %}
 <main class="page page--demo">
-    <h1 class="brand-title">{{ room.code }}</h1>
-    <p class="note">
-        Vue démo : un cadre par joueur actuellement dans la room.
-        Recharge cette page si de nouveaux joueurs rejoignent.
-    </p>
-
     {% if not players %}
     <p class="note note--error">Aucun joueur dans cette room pour l'instant.</p>
     {% endif %}
 
-    <div class="phone-grid">
+    <div class="phone-grid" id="phone-grid">
         {% for p in players %}
         <div class="phone-frame">
             <span class="phone-frame__label">{{ p.nickname }}</span>
             <div class="phone-frame__notch" aria-hidden="true"></div>
             <iframe class="phone-frame__screen"
-                    src="/room/{{ room.code }}?player={{ p.nickname }}"
+                    src="/room/{{ room.code }}?player={{ p.nickname }}&embedded=1"
                     loading="lazy"
                     title="Écran de {{ p.nickname }}"></iframe>
         </div>
         {% endfor %}
+        <button type="button" class="phone-add-button" id="phone-add-button" aria-label="Ajouter un téléphone">+</button>
     </div>
 </main>
+<script src="/static/js/demo.js?v={{ asset_version('js/demo.js') }}"></script>
 {% endblock %}

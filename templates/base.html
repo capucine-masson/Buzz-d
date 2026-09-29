@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="fr">
+<html lang="fr"{% if request.query_params.get('embedded') %} class="is-embedded"{% endif %}>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -11,10 +11,7 @@
 </head>
 <body>
     <a href="/" class="icon-button icon-button--home" aria-label="Retour à l'accueil">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <path d="M3 11.5 12 4l9 7.5"></path>
-            <path d="M5 10v9a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1v-9"></path>
-        </svg>
+        <img src="/static/css/logo%20BUZZ'D.jpg" alt="" class="icon-button__logo">
     </a>
     <button id="theme-toggle" class="icon-button theme-toggle" type="button" aria-label="Changer de thème">
         <svg id="theme-toggle-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">

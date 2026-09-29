@@ -55,7 +55,6 @@
             {% elif track_count > 0 %}
             <div class="card room-panel">
                 <h2>Playlist prête</h2>
-                <p class="note">{{ track_count }} morceaux prêts à jouer.</p>
                 {% if is_host %}
                 <form method="post" action="/rooms/{{ room.code }}/start">
                     <input type="hidden" name="player" value="{{ player }}">

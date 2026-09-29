@@ -49,36 +49,45 @@ async def resolve_playlist_id(url: str) -> str:
     return playlist_id
 
 
+_MAX_PAGES = 40  # garde-fou : 40 x 25 = 1000 morceaux max, largement suffisant pour un blind test
+
+
 async def fetch_playlist_tracks(playlist_id: str) -> list[dict]:
-    api_url = f"https://api.deezer.com/playlist/{playlist_id}/tracks"
+    tracks: list[dict] = []
+    next_url = f"https://api.deezer.com/playlist/{playlist_id}/tracks"
+
     try:
         async with httpx.AsyncClient(timeout=_REQUEST_TIMEOUT) as client:
-            response = await client.get(api_url)
+            for _ in range(_MAX_PAGES):
+                response = await client.get(next_url)
+
+                if response.status_code != 200:
+                    raise DeezerError("Playlist introuvable ou privée")
+
+                payload = response.json()
+                if isinstance(payload, dict) and "error" in payload:
+                    raise DeezerError("Playlist introuvable ou privée")
+
+                for item in payload.get("data", []):
+                    title = item.get("title")
+                    artist = (item.get("artist") or {}).get("name")
+                    preview_url = item.get("preview")
+                    if not title or not artist or not preview_url:
+                        continue
+                    tracks.append(
+                        {
+                            "deezer_track_id": item.get("id"),
+                            "title": title,
+                            "artist": artist,
+                            "preview_url": preview_url,
+                        }
+                    )
+
+                next_url = payload.get("next")
+                if not next_url:
+                    break
     except httpx.RequestError as exc:
         raise DeezerError("Impossible de contacter Deezer, réessaie plus tard") from exc
-
-    if response.status_code != 200:
-        raise DeezerError("Playlist introuvable ou privée")
-
-    payload = response.json()
-    if isinstance(payload, dict) and "error" in payload:
-        raise DeezerError("Playlist introuvable ou privée")
-
-    tracks = []
-    for item in payload.get("data", []):
-        title = item.get("title")
-        artist = (item.get("artist") or {}).get("name")
-        preview_url = item.get("preview")
-        if not title or not artist or not preview_url:
-            continue
-        tracks.append(
-            {
-                "deezer_track_id": item.get("id"),
-                "title": title,
-                "artist": artist,
-                "preview_url": preview_url,
-            }
-        )
 
     if not tracks:
         raise DeezerError("Playlist introuvable, privée, ou sans extrait disponible")
