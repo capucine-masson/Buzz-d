@@ -1,0 +1,7 @@
+Consigne.md
+.env
+buzzd.db
+__pycache__/
+*.pyc
+.venv/
+venv/

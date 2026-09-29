@@ -1,0 +1,50 @@
+:root {
+    --color-white: #FFFFFF;
+    --color-mist: #EBF1E4;
+    --color-aqua: #A1E1E3;
+    --color-green: #1A9E27;
+    --color-dark: #103536;
+
+    --font-title: "Bahiana", cursive;
+    --font-body: "Bellota Text", sans-serif;
+    --font-note: "Anonymous Pro", monospace;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    background: linear-gradient(160deg, var(--color-mist) 0%, var(--color-aqua) 100%);
+    color: var(--color-dark);
+    font-family: var(--font-body);
+}
+
+.brand-title {
+    font-family: var(--font-title);
+    color: var(--color-dark);
+    font-size: 4rem;
+    margin: 0;
+}
+
+.page {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 3rem 1.5rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 1rem;
+}
+
+.note {
+    font-family: var(--font-note);
+    color: var(--color-dark);
+    background: var(--color-white);
+    border: 1px solid var(--color-green);
+    border-radius: 8px;
+    padding: 0.5rem 1rem;
+}
